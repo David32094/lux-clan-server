@@ -7,11 +7,12 @@
   const SESSION_KEY = 'lux_clan_auth_v1';
   const MAX_AVATAR = 5 * 1024 * 1024;
   const MAX_EVIDENCE = 8 * 1024 * 1024;
+  const MAX_BANNER = 10 * 1024 * 1024;
   const AUTH_REDIRECT_VERSION = 'google-v1';
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
-  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, directory:new Map(), ranking:new Map(), editorBack:'member' };
+  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, directory:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member' };
 
   // Preservar hash de OAuth en sessionStorage para inmunitad total contra escrituras de location.hash por otros scripts
   let rawHash = window.location.hash ? window.location.hash.substring(1) : '';
@@ -129,12 +130,40 @@
     });
     return path;
   }
+  async function uploadUpsert(bucket, path, file) {
+    await request(`/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`, {
+      method:'POST',
+      headers:{ 'Content-Type':file.type, 'x-upsert':'true' },
+      body:file
+    });
+    return path;
+  }
   async function signedEvidence(path) {
     if (!path) return '';
     const data = await request(`/storage/v1/object/sign/lux-evidence/${path.split('/').map(encodeURIComponent).join('/')}`, {
       method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:3600 })
     });
     return data?.signedURL ? `${base}/storage/v1${data.signedURL}` : '';
+  }
+  async function signedBanner(path) {
+    if (!path) return '';
+    const data = await request(`/storage/v1/object/sign/lux-banners/${path.split('/').map(encodeURIComponent).join('/')}`, {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:300 })
+    });
+    return data?.signedURL ? `${base}/storage/v1${data.signedURL}` : '';
+  }
+  function blankModeStats() { return { '1v1':0, '2v2':0, '3v3':0, '4v4':0, Otro:0, total:0 }; }
+  function modeStats(rows, status = 'approved') {
+    return (rows || []).reduce((stats, row) => {
+      if (!status || row.status === status) {
+        if (Object.prototype.hasOwnProperty.call(stats, row.mode)) stats[row.mode] += 1;
+        stats.total += 1;
+      }
+      return stats;
+    }, blankModeStats());
+  }
+  function rankingModeLine(stats = {}) {
+    return `1v1 ${Number(stats.victories_1v1 || 0)} · 2v2 ${Number(stats.victories_2v2 || 0)} · 3v3 ${Number(stats.victories_3v3 || 0)} · 4v4 ${Number(stats.victories_4v4 || 0)}`;
   }
 
   let evidenceZoom = 1;
@@ -361,8 +390,8 @@
       if ($('lux-public-members')) $('lux-public-members').textContent = all.length;
       if ($('lux-public-wins')) $('lux-public-wins').textContent = total4;
       if ($('lux-public-total')) $('lux-public-total').textContent = total;
-      if ($('lux-public-podium')) $('lux-public-podium').innerHTML = all.slice(0, 3).map((row, index) => `<article><i>#${index + 1}</i>${avatarHtml(row, 'lux-podium-avatar')}<strong>${esc(row.display_name)}</strong><small>${row.victories_4v4} victorias 4v4</small></article>`).join('') || '<p class="hub-empty">Todavía no hay resultados confirmados.</p>';
-      if ($('lux-public-ranking')) $('lux-public-ranking').innerHTML = all.map((row, index) => `<article class="lux-public-row"><i>#${index + 1}</i>${avatarHtml(row)}<div><strong>${esc(row.display_name)}</strong><small>${row.country_code ? `${esc(row.country_code)} · ` : ''}${row.victories_4v4} 4v4 · ${row.victories_total} total</small></div></article>`).join('') || '<p class="hub-empty">El ranking aparecerá al aprobarse victorias.</p>';
+      if ($('lux-public-podium')) $('lux-public-podium').innerHTML = all.slice(0, 3).map((row, index) => `<article><i>#${index + 1}</i>${avatarHtml(row, 'lux-podium-avatar')}<strong>${esc(row.display_name)}</strong><small>${row.victories_total} victorias aprobadas</small></article>`).join('') || '<p class="hub-empty">Todavía no hay resultados confirmados.</p>';
+      if ($('lux-public-ranking')) $('lux-public-ranking').innerHTML = all.map((row, index) => `<article class="lux-public-row"><i>#${index + 1}</i>${avatarHtml(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></div></article>`).join('') || '<p class="hub-empty">El ranking aparecerá al aprobarse victorias.</p>';
       renderPublicPlates(plates || []);
       renderMemberTop(all);
     } catch (_) {
@@ -374,7 +403,7 @@
     if (!target) return;
     const mine = all.find(row => row.player_id === state.user?.id);
     const position = mine ? all.findIndex(row => row.player_id === mine.player_id) + 1 : 0;
-    target.innerHTML = `<div class="lux-member-top-head"><div><span class="hub-kicker">CLASIFICACIÓN ABIERTA</span><h3>Top del clan</h3></div><button type="button" onclick="window.luxAccess.openPublic()">VER TODO →</button></div><div class="lux-member-top-grid"><article><b>${position ? `#${position}` : '—'}</b><small>MI POSICIÓN</small></article><article><b>${mine?.victories_4v4 || 0}</b><small>MIS 4V4</small></article><section>${all.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b><span>${esc(row.display_name)}</span><em>${row.victories_4v4} 4v4</em></p>`).join('') || '<p class="lux-no-ranking">Aún no hay victorias aprobadas.</p>'}</section></div>`;
+    target.innerHTML = `<div class="lux-member-top-head"><div><span class="hub-kicker">CLASIFICACIÓN ABIERTA</span><h3>Top del clan</h3></div><button type="button" onclick="window.luxAccess.openPublic()">VER TODO →</button></div><div class="lux-member-top-grid"><article><b>${position ? `#${position}` : '—'}</b><small>MI POSICIÓN</small></article><article><b>${mine?.victories_total || 0}</b><small>MIS VICTORIAS</small></article><section>${all.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b><span>${esc(row.display_name)}</span><em>${row.victories_total} total</em></p>`).join('') || '<p class="lux-no-ranking">Aún no hay victorias aprobadas.</p>'}</section></div>`;
   }
   function ensurePublicPlates() {
     const page = document.querySelector('#lux-public-screen .hub-page');
@@ -387,12 +416,20 @@
     target.innerHTML = rows.length ? rows.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b>${avatarHtml(row, 'lux-public-plate-avatar')}<span>${esc(row.display_name)}</span><em>${row.plate_count} placas</em></p>`).join('') : '<p class="lux-plates-public-empty">Aún no hay placas registradas.</p>';
   }
 
+  function ensureMemberModeStats() {
+    const target = document.querySelector('.hub-stats>div');
+    if (!target || $('hub-1v1')) return;
+    target.classList.add('lux-mode-summary');
+    target.innerHTML = `<article><b id="hub-1v1">0</b><small>1V1</small></article><article><b id="hub-2v2">0</b><small>2V2</small></article><article><b id="hub-3v3">0</b><small>3V3</small></article><article><b id="hub-4v4">0</b><small>4V4</small></article><article><b id="hub-other">0</b><small>OTRAS</small></article><article><b id="hub-total">0</b><small>TOTAL</small></article>`;
+  }
+
   async function renderMember() {
     if (!state.user) return;
+    ensureMemberModeStats();
     const profile = await loadProfile();
     const rows = await request(`/rest/v1/victories?player_id=eq.${encodeURIComponent(state.user.id)}&select=id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc`);
     const accepted = rows.filter(row => row.status === 'approved');
-    const four = accepted.filter(row => row.mode === '4v4').length;
+    const stats = modeStats(rows);
     if ($('hub-name')) $('hub-name').value = profile?.display_name === 'Jugador' ? '' : (profile?.display_name || '');
     if ($('hub-age')) $('hub-age').value = profile?.age || '';
     if ($('hub-country')) $('hub-country').value = profile?.country_code || '';
@@ -400,7 +437,11 @@
     const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
     if ($('hub-avatar')) { $('hub-avatar').src = avatar; $('hub-avatar').hidden = !avatar; }
     if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = Boolean(avatar);
-    if ($('hub-4v4')) $('hub-4v4').textContent = four;
+    if ($('hub-1v1')) $('hub-1v1').textContent = stats['1v1'];
+    if ($('hub-2v2')) $('hub-2v2').textContent = stats['2v2'];
+    if ($('hub-3v3')) $('hub-3v3').textContent = stats['3v3'];
+    if ($('hub-4v4')) $('hub-4v4').textContent = stats['4v4'];
+    if ($('hub-other')) $('hub-other').textContent = stats.Otro;
     if ($('hub-total')) $('hub-total').textContent = accepted.length;
     const list = $('hub-history-list');
     if (list) {
@@ -452,6 +493,26 @@
     if (event?.target) event.target.value = '';
     toast('✅ FOTO LISTA PARA GUARDAR');
   }
+  function canvasBlob(canvas) {
+    return new Promise((resolve, reject) => canvas?.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo leer el banner')), 'image/png'));
+  }
+  async function saveCurrentBanner(canvas) {
+    if (!state.user || state.editorBack !== 'member') return;
+    try {
+      const blob = await canvasBlob(canvas);
+      if (blob.size > MAX_BANNER) throw new Error('El banner supera el límite de 10 MB');
+      const banner_path = `${state.user.id}/integrante.png`;
+      await uploadUpsert('lux-banners', banner_path, new File([blob], 'integrante.png', { type:'image/png' }));
+      await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}`, {
+        method:'PATCH', headers:{ 'Content-Type':'application/json', Prefer:'return=representation' }, body:JSON.stringify({ banner_path })
+      });
+      if (state.profile) state.profile.banner_path = banner_path;
+      if (state.directory.has(state.user.id)) state.directory.get(state.user.id).banner_path = banner_path;
+      toast('✅ TU MISMO BANNER QUEDÓ GUARDADO PARA LAS LÍDERES');
+    } catch (error) {
+      toast(`⚠️ EL BANNER SE DESCARGÓ, PERO NO SE PUDO GUARDAR: ${errorMessage(error).toUpperCase()}`);
+    }
+  }
   async function loadMine() { if (state.user) await renderMember(); }
   async function registerVictory() {
     if (!state.user) { openLogin('member'); return; }
@@ -485,9 +546,26 @@
       const statsA = state.ranking.get(a.id) || {};
       const statsB = state.ranking.get(b.id) || {};
       return Number(statsB.victories_4v4 || 0) - Number(statsA.victories_4v4 || 0)
+        || Number(statsB.victories_3v3 || 0) - Number(statsA.victories_3v3 || 0)
+        || Number(statsB.victories_2v2 || 0) - Number(statsA.victories_2v2 || 0)
+        || Number(statsB.victories_1v1 || 0) - Number(statsA.victories_1v1 || 0)
         || Number(statsB.victories_total || 0) - Number(statsA.victories_total || 0)
         || String(a.display_name || '').localeCompare(String(b.display_name || ''), 'es');
     });
+  }
+  function canRemoveMember(id) {
+    if (!state.isLeader || !id || id === state.user?.id) return false;
+    return state.isOwner || state.roles.get(id) === 'member';
+  }
+  function bannerButton(member) {
+    return member.banner_path
+      ? `<button type="button" onclick="window.luxSupabase.downloadStoredBanner('${esc(member.id)}')">BANNER ↓</button>`
+      : '<button type="button" disabled title="El integrante todavía no ha descargado su banner">SIN BANNER</button>';
+  }
+  function removalButton(member, label = 'EXPULSAR') {
+    return canRemoveMember(member.id)
+      ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(member.id)}')">${label}</button>`
+      : '';
   }
   function renderDirectory() {
     const target = $('hub-member-directory-list');
@@ -497,7 +575,7 @@
     target.innerHTML = rows.length ? rows.map((member, index) => {
       const stats = state.ranking.get(member.id) || {};
       const profileState = member.display_name === 'Jugador' ? ' · PERFIL PENDIENTE' : '';
-      return `<article class="hub-member-row"><i>#${index + 1}</i>${avatarHtml(member, 'hub-directory-avatar')}<div><strong>${esc(member.display_name || 'Jugador')}</strong><small>${esc(member.country_name || member.country_code || 'País pendiente')} · ${Number(stats.victories_4v4 || 0)} victorias 4v4 · ${Number(stats.victories_total || 0)} total${profileState}</small></div><span class="hub-member-row-actions"><button type="button" onclick="window.luxHub.openPlayer('${esc(member.id)}')">VER</button><button type="button" onclick="window.luxHub.downloadPhoto('${esc(member.id)}')">BANNER ↓</button></span></article>`;
+      return `<article class="hub-member-row"><i>#${index + 1}</i>${avatarHtml(member, 'hub-directory-avatar')}<div><strong>${esc(member.display_name || 'Jugador')}</strong><small>${esc(member.country_name || member.country_code || 'País pendiente')} · ${rankingModeLine(stats)} · TOTAL ${Number(stats.victories_total || 0)}${profileState}</small></div><span class="hub-member-row-actions"><button type="button" onclick="window.luxHub.openPlayer('${esc(member.id)}')">VER</button>${bannerButton(member)}${removalButton(member)}</span></article>`;
     }).join('') : '<p class="hub-empty">No hay integrantes que coincidan con la búsqueda.</p>';
   }
   async function showDirectory() {
@@ -534,7 +612,7 @@
     if (!existingButton) nav.insertAdjacentHTML('afterbegin', '<button id="lux-owner-nav" class="lux-owner-nav" type="button" onclick="window.luxSupabase.showOwnerAccounts()">CUENTAS</button>');
     if (!$('lux-owner-panel')) page.insertAdjacentHTML('beforeend', `<section id="lux-owner-panel" class="lux-owner-panel" hidden>
       <header class="hub-directory-head"><div><span class="hub-kicker">CONTROL PRIVADO</span><h2>Cuentas<br/><em>registradas.</em></h2><p>Esta zona solo existe para la cuenta propietaria. Aquí puedes distinguir cuentas Google, perfiles pendientes y accesos antiguos.</p></div><button type="button" onclick="window.luxHub.showAdminSummary()">← RESUMEN</button></header>
-      <div class="lux-owner-notice">🔒 Las cuentas no se borran desde el navegador: una eliminación segura también debe limpiar sus imágenes y datos del servidor.</div>
+      <div class="lux-owner-notice">🔒 Solo tú ves correos y cuentas. Al eliminar una cuenta se borran también su perfil, victorias, placas, banner e imágenes.</div>
       <div id="lux-owner-accounts" class="lux-owner-accounts"></div>
     </section>`);
   }
@@ -553,7 +631,8 @@
       target.innerHTML = rows.length ? rows.map(row => {
         const connected = String(row.providers || '').split(',').map(item => item.trim()).filter(Boolean);
         const profile = state.directory.get(row.user_id);
-        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${row.display_name === 'Jugador' ? 'PERFIL PENDIENTE' : 'PERFIL ACTIVO'} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div>${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>SIN PERFIL</em>'}</article>`;
+        const canDelete = row.user_id !== state.user?.id;
+        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${row.display_name === 'Jugador' ? 'PERFIL PENDIENTE' : 'PERFIL ACTIVO'} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div><span class="lux-owner-actions">${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>SIN PERFIL</em>'}${canDelete ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(row.user_id)}')">ELIMINAR</button>` : '<em>CUENTA OWNER</em>'}</span></article>`;
       }).join('') : '<p class="hub-empty">Todavía no hay cuentas registradas.</p>';
     } catch (error) {
       target.innerHTML = `<p class="hub-empty">No se pudo cargar el control de cuentas: ${esc(errorMessage(error))}</p>`;
@@ -564,23 +643,25 @@
     if (!state.isStaff) return;
     const sessionLabel = $('lux-leader-session');
     if (sessionLabel) sessionLabel.textContent = state.isOwner ? 'Control privado · cuenta verificada' : `${roleLabel()} · cuenta verificada`;
-    const [profiles, victories, ranking] = await Promise.all([
-      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,is_public,created_at&order=display_name.asc'),
+    const [profiles, victories, ranking, roles] = await Promise.all([
+      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,banner_path,is_public,created_at&order=display_name.asc'),
       request('/rest/v1/victories?select=id,player_id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc'),
-      rpc('get_public_ranking', {}, false)
+      rpc('get_public_ranking', {}, false),
+      rpc('staff_list_member_roles')
     ]);
     state.directory = new Map((profiles || []).map(row => [row.id, row]));
+    state.roles = new Map((roles || []).map(row => [row.user_id, row.role]));
     const approved = (victories || []).filter(row => row.status === 'approved');
     const byId = new Map((ranking || []).map(row => [row.player_id, row]));
     state.ranking = byId;
-    const ordered = [...state.directory.values()].sort((a, b) => (byId.get(b.id)?.victories_4v4 || 0) - (byId.get(a.id)?.victories_4v4 || 0) || a.display_name.localeCompare(b.display_name, 'es'));
+    const ordered = orderedDirectory();
     const mvp = ordered[0];
     if ($('admin-members')) $('admin-members').textContent = profiles.length;
     if ($('admin-wins')) $('admin-wins').textContent = approved.filter(row => row.mode === '4v4').length;
     if ($('admin-mvp')) $('admin-mvp').innerHTML = mvp ? avatarHtml(mvp, 'hub-mvp-avatar') : '<span class="hub-mvp-avatar hub-avatar-empty">★</span>';
     if ($('admin-mvp-name')) $('admin-mvp-name').textContent = mvp?.display_name || 'Aún sin MVP';
-    if ($('admin-mvp-detail')) $('admin-mvp-detail').textContent = mvp ? `${byId.get(mvp.id)?.victories_4v4 || 0} victorias 4v4` : 'Registra la primera victoria';
-    if ($('admin-ranking')) $('admin-ranking').innerHTML = ordered.map((member, index) => { const stats = byId.get(member.id) || {}; return `<button type="button" class="hub-rank" onclick="window.luxHub.openPlayer('${esc(member.id)}')"><i>#${index + 1}</i>${avatarHtml(member, 'hub-rank-avatar')}<span><strong>${esc(member.display_name)}</strong><small>${stats.victories_4v4 || 0} victorias 4v4 · ${stats.victories_total || 0} total</small></span><b>VER</b></button>`; }).join('') || '<p class="hub-empty">Aún no hay integrantes registrados.</p>';
+    if ($('admin-mvp-detail')) $('admin-mvp-detail').textContent = mvp ? `${byId.get(mvp.id)?.victories_total || 0} victorias aprobadas` : 'Registra la primera victoria';
+    if ($('admin-ranking')) $('admin-ranking').innerHTML = ordered.map((member, index) => { const stats = byId.get(member.id) || {}; return `<button type="button" class="hub-rank" onclick="window.luxHub.openPlayer('${esc(member.id)}')"><i>#${index + 1}</i>${avatarHtml(member, 'hub-rank-avatar')}<span><strong>${esc(member.display_name)}</strong><small>${rankingModeLine(stats)} · TOTAL ${Number(stats.victories_total || 0)}</small></span><b>VER</b></button>`; }).join('') || '<p class="hub-empty">Aún no hay integrantes registrados.</p>';
     renderReviewQueue((victories || []).filter(row => row.status === 'pending'));
     renderDirectory();
     ensureOwnerPanel();
@@ -614,106 +695,74 @@
     if (!member) return;
     const victories = await request(`/rest/v1/victories?player_id=eq.${encodeURIComponent(id)}&select=id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc`);
     const signed = await Promise.all(victories.map(async row => ({ ...row, image:await signedEvidence(row.evidence_path).catch(() => '') })));
-    const accepted = victories.filter(row => row.status === 'approved');
-    const four = accepted.filter(row => row.mode === '4v4').length;
+    const stats = modeStats(victories);
     const pending = victories.filter(row => row.status === 'pending').length;
-    $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadPlayerBanner('${esc(member.id)}')">DESCARGAR BANNER</button></div></header><section class="hub-modal-stats"><div><b>${four}</b><small>VICTORIAS 4V4</small></div><div><b>${accepted.length}</b><small>VICTORIAS APROBADAS</small></div><div><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
+    const bannerAction = member.banner_path
+      ? `<button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadStoredBanner('${esc(member.id)}')">DESCARGAR BANNER REAL</button>`
+      : '<button type="button" class="lux-download-avatar" disabled>EL INTEGRANTE AÚN NO GENERÓ SU BANNER</button>';
+    $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><div class="lux-player-actions">${bannerAction}${removalButton(member)}</div></div></header><section class="hub-modal-stats lux-player-stats"><div><b>${stats['1v1']}</b><small>1V1</small></div><div><b>${stats['2v2']}</b><small>2V2</small></div><div><b>${stats['3v3']}</b><small>3V3</small></div><div><b>${stats['4v4']}</b><small>4V4</small></div><div><b>${stats.Otro}</b><small>OTRAS</small></div><div><b>${stats.total}</b><small>APROBADAS</small></div><div class="lux-pending-stat"><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }
   function closePlayer() { $('hub-modal').hidden = true; document.body.classList.remove('hub-no-scroll'); }
-  function roundedRect(ctx, x, y, width, height, radius) {
-    const r = Math.min(radius, width / 2, height / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + width, y, x + width, y + height, r);
-    ctx.arcTo(x + width, y + height, x, y + height, r); ctx.arcTo(x, y + height, x, y, r);
-    ctx.arcTo(x, y, x + width, y, r); ctx.closePath();
-  }
-  function canvasImage(url) {
-    return new Promise(async (resolve, reject) => {
-      if (!url) { reject(new Error('Sin imagen')); return; }
-      try {
-        const blob = await fetch(url, { mode:'cors' }).then(response => {
-          if (!response.ok) throw new Error('No se pudo cargar la foto');
-          return response.blob();
-        });
-        const objectUrl = URL.createObjectURL(blob);
-        const image = new Image();
-        image.onload = () => { URL.revokeObjectURL(objectUrl); resolve(image); };
-        image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Foto inválida')); };
-        image.src = objectUrl;
-      } catch (error) { reject(error); }
-    });
-  }
-  function fitCanvasText(ctx, text, maxWidth, startSize, minSize = 44) {
-    let size = startSize;
-    do { ctx.font = `700 ${size}px 'Bebas Neue', Impact, sans-serif`; size -= 2; }
-    while (ctx.measureText(text).width > maxWidth && size > minSize);
-  }
-  async function downloadPlayerBanner(id) {
+  async function downloadStoredBanner(id) {
     if (!state.isStaff && id !== state.user?.id) return;
     const member = state.directory.get(id) || (id === state.user?.id ? state.profile : null) || (await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=*`))[0];
     if (!member) { toast('⚠️ NO SE ENCONTRÓ EL PERFIL'); return; }
-    let stats = state.ranking.get(id);
-    if (!stats) {
-      const ranking = await rpc('get_public_ranking', {}, false).catch(() => []);
-      stats = ranking.find(row => row.player_id === id) || {};
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080; canvas.height = 1350;
-    const ctx = canvas.getContext('2d');
-    const background = ctx.createLinearGradient(0, 0, 1080, 1350);
-    background.addColorStop(0, '#07070a'); background.addColorStop(.55, '#170708'); background.addColorStop(1, '#040406');
-    ctx.fillStyle = background; ctx.fillRect(0, 0, 1080, 1350);
-    const glow = ctx.createRadialGradient(830, 210, 10, 830, 210, 560);
-    glow.addColorStop(0, 'rgba(255,45,18,.45)'); glow.addColorStop(1, 'rgba(255,0,0,0)');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, 1080, 900);
-    ctx.strokeStyle = '#ff2c12'; ctx.lineWidth = 4; ctx.strokeRect(32, 32, 1016, 1286);
-    ctx.strokeStyle = 'rgba(255,44,18,.3)'; ctx.lineWidth = 1;
-    for (let y = 70; y < 1280; y += 42) { ctx.beginPath(); ctx.moveTo(54, y); ctx.lineTo(1026, y - 160); ctx.stroke(); }
-    ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff'; ctx.font = "700 58px 'Bebas Neue', Impact, sans-serif"; ctx.fillText('LUX CLAN SERVER', 540, 128);
-    ctx.fillStyle = '#ff563a'; ctx.font = "700 25px 'Segoe UI', sans-serif"; ctx.letterSpacing = '5px'; ctx.fillText('FICHA OFICIAL DE INTEGRANTE', 540, 176);
-
-    const avatarUrl = member.avatar_path ? publicUrl('lux-avatars', member.avatar_path) : (member.avatar_url || '');
-    ctx.save(); ctx.beginPath(); ctx.arc(540, 430, 210, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#140c10'; ctx.fillRect(330, 220, 420, 420);
+    if (!member.banner_path) { toast('ℹ️ ESTE INTEGRANTE TODAVÍA NO GENERÓ SU BANNER'); return; }
     try {
-      const image = await canvasImage(avatarUrl);
-      const scale = Math.max(420 / image.naturalWidth, 420 / image.naturalHeight);
-      const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
-      ctx.drawImage(image, 540 - width / 2, 430 - height / 2, width, height);
-    } catch (_) {
-      ctx.fillStyle = '#ff3d21'; ctx.font = "700 190px 'Bebas Neue', Impact, sans-serif";
-      ctx.fillText(String(member.display_name || '?').trim().slice(0, 1).toUpperCase(), 540, 500);
+      const signedUrl = await signedBanner(member.banner_path);
+      const blob = await fetch(signedUrl).then(response => { if (!response.ok) throw new Error('No se pudo cargar el banner'); return response.blob(); });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const name = String(member.display_name || 'JUGADOR').toUpperCase().replace(/[^A-Z0-9_-]+/g, '-');
+      link.href = url; link.download = `${name}-LUX-CLAN.png`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      toast('✅ BANNER ORIGINAL DEL EDITOR DESCARGADO');
+    } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
+  }
+
+  function ensureRemovalDialog() {
+    if ($('lux-remove-dialog')) return;
+    document.body.insertAdjacentHTML('beforeend', `<div id="lux-remove-dialog" class="lux-remove-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="lux-remove-title"><div><span class="hub-kicker">ACCIÓN DEFINITIVA</span><h2 id="lux-remove-title">Expulsar integrante</h2><p id="lux-remove-copy"></p><small>Se eliminarán la cuenta, el perfil, banner, placas, victorias y todas sus imágenes. Esta acción no se puede deshacer.</small><span><button type="button" onclick="window.luxSupabase.closeMemberRemoval()">CANCELAR</button><button id="lux-remove-confirm" type="button" class="lux-danger-action" onclick="window.luxSupabase.confirmMemberRemoval()">SÍ, ELIMINAR TODO</button></span></div></div>`);
+  }
+  let removalTarget = null;
+  function requestMemberRemoval(id) {
+    if (!canRemoveMember(id)) { toast('⛔ NO TIENES PERMISO PARA ELIMINAR ESTA CUENTA'); return; }
+    ensureRemovalDialog();
+    const member = state.directory.get(id);
+    removalTarget = { id, name:member?.display_name || 'esta cuenta' };
+    $('lux-remove-title').textContent = state.isOwner ? 'Eliminar cuenta' : 'Expulsar integrante';
+    $('lux-remove-copy').textContent = `¿Confirmas que quieres eliminar a ${removalTarget.name} de LUX CLAN?`;
+    $('lux-remove-dialog').hidden = false;
+    document.body.classList.add('hub-no-scroll');
+  }
+  function closeMemberRemoval() {
+    removalTarget = null;
+    if ($('lux-remove-dialog')) $('lux-remove-dialog').hidden = true;
+    if ($('hub-modal')?.hidden !== false && $('lux-plates-modal')?.hidden !== false) document.body.classList.remove('hub-no-scroll');
+  }
+  async function confirmMemberRemoval() {
+    if (!removalTarget || !canRemoveMember(removalTarget.id)) return;
+    const target = { ...removalTarget };
+    const button = $('lux-remove-confirm');
+    if (button) { button.disabled = true; button.textContent = 'ELIMINANDO…'; }
+    try {
+      const assets = await rpc('staff_member_assets', { p_user_id:target.id });
+      for (const asset of assets || []) {
+        await request(`/storage/v1/object/${encodeURIComponent(asset.bucket_id)}/${String(asset.object_name).split('/').map(encodeURIComponent).join('/')}`, { method:'DELETE' });
+      }
+      await rpc('staff_delete_member', { p_user_id:target.id });
+      state.directory.delete(target.id); state.ranking.delete(target.id); state.roles.delete(target.id);
+      closeMemberRemoval(); closePlayer();
+      await Promise.all([renderAdmin(), renderPublic()]);
+      if (state.isOwner && $('lux-owner-panel')?.hidden === false) await showOwnerAccounts();
+      toast(`✅ ${target.name.toUpperCase()} FUE ELIMINADO DEL CLAN`);
+    } catch (error) {
+      toast(`⚠️ NO SE ELIMINÓ NADA: ${errorMessage(error).toUpperCase()}`);
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'SÍ, ELIMINAR TODO'; }
     }
-    ctx.restore(); ctx.beginPath(); ctx.arc(540, 430, 214, 0, Math.PI * 2); ctx.strokeStyle = '#ff3217'; ctx.lineWidth = 12; ctx.stroke();
-    ctx.beginPath(); ctx.arc(540, 430, 228, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2; ctx.stroke();
-
-    const name = String(member.display_name || 'JUGADOR').toUpperCase();
-    ctx.fillStyle = '#ffffff'; fitCanvasText(ctx, name, 900, 116); ctx.fillText(name, 540, 750);
-    ctx.fillStyle = '#ff4b31'; ctx.font = "700 32px 'Segoe UI', sans-serif"; ctx.fillText('INTEGRANTE OFICIAL', 540, 808);
-    ctx.fillStyle = '#bdb7bf'; ctx.font = "500 30px 'Segoe UI', sans-serif";
-    ctx.fillText(`${member.country_name || member.country_code || 'PAÍS PENDIENTE'}  ·  ${member.age || '—'} AÑOS`, 540, 862);
-
-    const cards = [
-      { x:90, label:'VICTORIAS 4V4', value:Number(stats?.victories_4v4 || 0) },
-      { x:555, label:'VICTORIAS TOTALES', value:Number(stats?.victories_total || 0) }
-    ];
-    cards.forEach(card => {
-      roundedRect(ctx, card.x, 930, 435, 205, 28); ctx.fillStyle = 'rgba(0,0,0,.68)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,77,48,.45)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = '#ff4b31'; ctx.font = "700 76px 'Bebas Neue', Impact, sans-serif"; ctx.fillText(String(card.value), card.x + 217.5, 1025);
-      ctx.fillStyle = '#d4ced5'; ctx.font = "700 24px 'Segoe UI', sans-serif"; ctx.fillText(card.label, card.x + 217.5, 1084);
-    });
-    ctx.fillStyle = '#ffffff'; ctx.font = "700 34px 'Bebas Neue', Impact, sans-serif"; ctx.fillText('LUX UP  ·  BY DAVID.XIT', 540, 1235);
-    ctx.fillStyle = '#9b949d'; ctx.font = "500 20px 'Segoe UI', sans-serif"; ctx.fillText('PERFIL VERIFICADO DENTRO DE LUX CLAN SERVER', 540, 1277);
-
-    canvas.toBlob(blob => {
-      if (!blob) { toast('⚠️ NO SE PUDO CREAR EL BANNER'); return; }
-      const url = URL.createObjectURL(blob); const link = document.createElement('a');
-      link.href = url; link.download = `${name.replace(/[^A-Z0-9_-]+/g, '-')}-LUX-CLAN.png`; link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 15000); toast('✅ BANNER DEL INTEGRANTE DESCARGADO');
-    }, 'image/png');
   }
   async function backup() {
     if (!state.isStaff) return;
@@ -865,7 +914,7 @@
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
-    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
+    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
   }
   async function openMember() {
     if (!state.user) { openLogin('member'); return; }
@@ -880,20 +929,82 @@
     const style = document.createElement('style');
     style.textContent = `.lux-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;margin-top:18px;border:1px solid #ffffff35;border-radius:12px;background:#ffffff;color:#1a1a1a;font:700 1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.2px;cursor:pointer;box-shadow:0 4px 20px #00000060;transition:transform .15s,box-shadow .15s}.lux-google-btn:hover{background:#f0f0f0;transform:translateY(-2px);box-shadow:0 8px 28px #00000080}.lux-google-btn:active{transform:translateY(0)}.lux-google-btn svg{flex-shrink:0}.lux-google-btn--big{padding:16px;font-size:1.05rem;letter-spacing:1.8px;border-radius:14px}.lux-auth-note{margin-top:14px;color:#6e6875;font-size:.65rem;line-height:1.5;text-align:center}.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
     style.textContent += `.lux-evidence-thumb{position:relative;display:block;width:100%;overflow:hidden;border:0!important;border-radius:8px;background:#050507!important;padding:0!important;cursor:zoom-in}.lux-evidence-thumb img{display:block;width:100%!important;height:130px;object-fit:cover;transition:transform .2s}.lux-evidence-thumb:hover img{transform:scale(1.035)}.lux-evidence-thumb>span{position:absolute!important;right:6px;bottom:6px;display:block!important;padding:4px 7px;border:1px solid #ffffff35;border-radius:999px;background:#000c;color:#fff;font:700 .55rem 'Segoe UI',sans-serif;letter-spacing:.7px}.lux-review-row>.lux-evidence-thumb{width:82px}.lux-review-row>.lux-evidence-thumb img{height:58px}.hub-modal-gallery .lux-evidence-thumb img{height:150px}.lux-evidence-viewer[hidden]{display:none!important}.lux-evidence-viewer{position:fixed;z-index:100010;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:12px;background:#030306f5;backdrop-filter:blur(12px);color:#fff}.lux-evidence-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;width:min(1180px,100%);margin:auto;padding:7px 0 10px}.lux-evidence-toolbar strong{overflow:hidden;font:1.2rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.5px;text-overflow:ellipsis;white-space:nowrap}.lux-evidence-toolbar span{display:flex;gap:6px}.lux-evidence-toolbar button{min-width:42px;height:40px;border:1px solid #ffffff33;border-radius:8px;background:#15151b;color:#fff;font:1.1rem 'Bebas Neue',Impact,sans-serif;cursor:pointer}.lux-evidence-toolbar .lux-evidence-close{border-color:#ff3c2c88;background:#8d160e;font-size:1.55rem}.lux-evidence-stage{width:min(1180px,100%);height:100%;margin:auto;overflow:auto;display:block;border:1px solid #ffffff1f;border-radius:12px;background:#000;text-align:center;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.lux-evidence-stage img{display:inline-block;width:100%;height:auto;min-height:100%;object-fit:contain;vertical-align:top;transform-origin:top center;touch-action:pan-x pan-y pinch-zoom}.lux-evidence-viewer>small{padding:9px 4px 2px;color:#a8a2ab;text-align:center;font-size:.68rem}.lux-player-hero{padding:18px;border:1px solid #ff3a2445!important;border-radius:16px!important;background:radial-gradient(circle at 12% 30%,#57130d80,transparent 32%),linear-gradient(135deg,#1b1117,#0c0c11)!important}.lux-player-avatar-ring{display:grid;place-items:center;padding:5px;border:1px solid #ff816f55;border-radius:50%;box-shadow:0 0 30px #ff220033}.lux-player-history-title{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-top:22px}.lux-player-history-title h3{margin:5px 0 0!important}.lux-player-history-title>small{max-width:250px;color:#948e97;font-size:.66rem;text-align:right}.lux-owner-nav{border-color:#e5b84c88!important;color:#ffdc7c!important}.lux-owner-panel em{color:#ffca55!important}.lux-owner-notice{margin-bottom:14px;padding:12px;border:1px solid #d39b3566;border-radius:10px;background:#c9871112;color:#d8c395;font-size:.73rem;line-height:1.45}.lux-owner-accounts{display:grid;gap:8px}.lux-owner-account{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:11px;padding:12px;border:1px solid #ffffff17;border-radius:12px;background:linear-gradient(145deg,#171219,#0d0d12)}.lux-owner-avatar{width:52px;height:52px;display:grid;place-items:center;border:1px solid #e9b94488;border-radius:50%;object-fit:cover}.lux-owner-account>div{display:grid;gap:3px;min-width:0}.lux-owner-account strong{color:#fff;font:1.3rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px}.lux-owner-account span{overflow:hidden;color:#c5bec8;font-size:.72rem;text-overflow:ellipsis;white-space:nowrap}.lux-owner-account small{color:#9d969f;font-size:.6rem}.lux-owner-account>button{border:1px solid #e8b94b66;border-radius:7px;background:#e8b94b12;color:#ffd36e;padding:8px;font:.9rem 'Bebas Neue',Impact,sans-serif;cursor:pointer}.lux-owner-account>em{color:#817b84;font-size:.65rem;font-style:normal}@media(max-width:620px){.lux-review-row>.lux-evidence-thumb{width:65px}.lux-review-row>.lux-evidence-thumb img{height:51px}.lux-evidence-viewer{padding:6px}.lux-evidence-toolbar strong{font-size:.9rem}.lux-evidence-toolbar button{min-width:36px;height:36px}.lux-evidence-viewer>small{font-size:.58rem}.lux-player-hero{padding:13px!important}.lux-player-avatar-ring .hub-modal-avatar{width:68px;height:68px}.lux-player-history-title{display:block}.lux-player-history-title>small{display:block;margin-top:6px;text-align:left}.lux-owner-account{grid-template-columns:45px minmax(0,1fr)}.lux-owner-avatar{width:45px;height:45px}.lux-owner-account>button,.lux-owner-account>em{grid-column:2;justify-self:start}}`;
+    style.textContent += `
+      .lux-mode-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+      #hub-modal-body{width:min(820px,100%)}
+      #hub-modal-body header.lux-player-hero{display:grid;grid-template-columns:1fr!important;justify-items:center;gap:13px;text-align:center;padding:25px!important}
+      .lux-player-avatar-ring{width:170px;height:170px;padding:7px}
+      .lux-player-avatar-ring .hub-modal-avatar{width:154px;height:154px;flex-basis:154px;border-width:3px}
+      #hub-modal-body .lux-player-hero h2{margin:7px 0 3px;font-size:3.2rem;line-height:.95}
+      #hub-modal-body .lux-player-hero p{margin:6px 0 0;font-size:.9rem}
+      .lux-player-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:12px}
+      .lux-player-actions .lux-download-avatar{margin:0}
+      .lux-player-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+      .lux-player-stats .lux-pending-stat{grid-column:span 2}
+      .lux-danger-action{border-color:#ff4949!important;background:#8d0f12!important;color:#fff!important}
+      button[disabled]{cursor:not-allowed!important;opacity:.46}
+      .hub-member-row-actions{flex-wrap:wrap;justify-content:flex-end}
+      .hub-member-row-actions .lux-danger-action{background:#5d0b0e!important}
+      .lux-owner-actions{display:flex!important;align-items:center;justify-content:flex-end;gap:6px;overflow:visible!important;white-space:normal!important}
+      .lux-owner-actions button{border:1px solid #e8b94b66;border-radius:7px;background:#e8b94b12;color:#ffd36e;padding:8px;font:.9rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer;white-space:nowrap}
+      .lux-owner-actions em{color:#9a949c;font-size:.62rem;font-style:normal}
+      .lux-remove-dialog[hidden]{display:none!important}
+      .lux-remove-dialog{position:fixed;z-index:100020;inset:0;display:grid;place-items:center;padding:15px;background:#000d;backdrop-filter:blur(8px)}
+      .lux-remove-dialog>div{width:min(480px,100%);padding:24px;border:1px solid #ff3e36aa;border-radius:16px;background:linear-gradient(145deg,#231014,#0d0c11);box-shadow:0 25px 80px #000}
+      .lux-remove-dialog h2{margin:7px 0;color:#fff;font:2.2rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.5px}
+      .lux-remove-dialog p{margin:0 0 10px;color:#f3d7d4;line-height:1.5}
+      .lux-remove-dialog small{display:block;color:#a89da1;font-size:.7rem;line-height:1.5}
+      .lux-remove-dialog>div>span:last-child{display:flex;gap:8px;margin-top:18px}
+      .lux-remove-dialog>div>span:last-child button{flex:1;border:1px solid #ffffff2d;border-radius:9px;background:#ffffff0b;color:#eee;padding:11px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}
+      @media(max-width:760px){
+        #hub-admin .hub-nav{align-items:flex-start;flex-wrap:wrap}
+        #hub-admin .hub-nav>strong{order:-1;width:100%;text-align:center}
+        #hub-admin .hub-nav>span{max-width:calc(100vw - 95px);overflow-x:auto;padding-bottom:3px}
+        #hub-admin .hub-nav>span button{flex:0 0 auto}
+        .hub-member-row-actions{justify-content:stretch}
+        .hub-member-row-actions button{min-width:31%;padding:8px 5px}
+      }
+      @media(max-width:620px){
+        #hub-modal-body header.lux-player-hero{padding:20px 12px!important}
+        .lux-player-avatar-ring{width:148px;height:148px}
+        .lux-player-avatar-ring .hub-modal-avatar{width:134px!important;height:134px!important;flex-basis:134px}
+        #hub-modal-body .lux-player-hero h2{font-size:2.7rem}
+        .lux-player-actions{width:100%}
+        .lux-player-actions button{flex:1;min-width:140px}
+        .lux-player-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .lux-player-stats .lux-pending-stat{grid-column:span 2}
+        .lux-player-history-title{text-align:center}
+        .lux-player-history-title>small{text-align:center}
+        .lux-owner-account{grid-template-columns:45px minmax(0,1fr)}
+        .lux-owner-actions{grid-column:1/-1;justify-content:stretch}
+        .lux-owner-actions button{flex:1}
+      }
+    `;
     document.head.appendChild(style);
   }
   function install() {
     installStyles();
     const oldSetScreen = window.luxHub.setScreen;
-    window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadPlayerBanner,
-      askAdmin:openLeader, confirmAdmin:openLeader, closeAdminKey:() => {}, setRole:() => toast('ℹ️ LOS PERMISOS SE GESTIONAN EN EL SERVIDOR'), removePlayer:() => toast('ℹ️ LOS PERFILES NO SE ELIMINAN DESDE EL NAVEGADOR') };
+    window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadStoredBanner,
+      askAdmin:openLeader, confirmAdmin:openLeader, closeAdminKey:() => {}, setRole:() => toast('ℹ️ LOS PERMISOS SE GESTIONAN EN EL SERVIDOR'), removePlayer:requestMemberRemoval };
     window.luxAccess = { ...window.luxAccess, openPublic:() => { oldSetScreen('public'); renderPublic(); }, openLogin, closeLogin, loginMember:openMember, loginLeader:openLeader, renderPublic, renderMemberTop:() => renderPublic() };
     window.luxPlates = { ...window.luxPlates, show:showPlates, add:addPlate, openGallery:openPlateGallery, closeGallery:closePlateGallery, remove:removePlate, renderSelector:renderPlatesSelector, renderRanking:renderPlatesRanking, renderPublic:renderPublic };
     document.querySelector('.hub-choice.player')?.setAttribute('onclick', 'window.luxAccess.loginMember()');
     document.querySelector('.hub-choice.leader')?.setAttribute('onclick', 'window.luxAccess.loginLeader()');
+    const mode = $('hub-mode');
+    if (mode) mode.innerHTML = '<option value="1v1">VICTORIA 1V1</option><option value="2v2">VICTORIA 2V2</option><option value="3v3">VICTORIA 3V3</option><option value="4v4" selected>VICTORIA 4V4</option><option value="Otro">OTRA PARTIDA</option>';
+    const nameInput = $('hub-name'); if (nameInput) nameInput.maxLength = 24;
+    const memberIntro = document.querySelector('#hub-member .hub-intro p');
+    if (memberIntro) memberIntro.textContent = 'Completa tu perfil una sola vez, genera tu banner y registra tus victorias. Todo queda unido a tu cuenta.';
+    const adminIntro = document.querySelector('#hub-admin .hub-admin-head p');
+    if (adminIntro) adminIntro.textContent = 'Revisa integrantes, banners, estadísticas y capturas desde un solo lugar.';
+    const rankingIntro = document.querySelector('#hub-admin .hub-ranking>p');
+    if (rankingIntro) rankingIntro.textContent = 'Ordenado por 4v4, 3v3, 2v2, 1v1 y victorias totales.';
+    const directoryIntro = document.querySelector('#hub-member-directory .hub-directory-head p');
+    if (directoryIntro) directoryIntro.textContent = 'Consulta perfiles y estadísticas, descarga sus banners originales o expulsa integrantes del clan.';
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
-    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadPlayerBanner, showOwnerAccounts };
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadStoredBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval };
     hydrateAccount().then(async user => {
       await renderPublic();
       if (user) {
