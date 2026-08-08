@@ -466,7 +466,7 @@
       <button type="button" onclick="window.luxHub.showDirectory()"><i>👥</i><strong>Integrantes</strong><small>Ver perfiles, banners y expulsar miembros.</small></button>
       ${state.isLeader ? '<button type="button" onclick="window.luxPlates.show()"><i>🏅</i><strong>Placas</strong><small>Registrar y consultar las placas del clan.</small></button>' : ''}
       <button type="button" onclick="window.luxHub.openEditor(true)"><i>🎨</i><strong>Editor de banners</strong><small>Crear imágenes para integrantes y enfrentamientos.</small></button>
-      ${state.isOwner ? '<button type="button" onclick="window.luxSupabase.showOwnerAccounts()"><i>🔒</i><strong>Cuentas y respaldo</strong><small>Gestionar correos, cuentas y copias de seguridad.</small></button>' : ''}
+      ${state.isOwner ? '<button type="button" onclick="window.luxSupabase.showOwnerAccounts()"><i>🔒</i><strong>Cuentas, roles y respaldo</strong><small>Nombrar líderes, gestionar cuentas y descargar copias.</small></button>' : ''}
     </div>`;
   }
 
@@ -753,8 +753,8 @@
       return;
     }
     if (!$('lux-owner-panel')) page.insertAdjacentHTML('beforeend', `<section id="lux-owner-panel" class="lux-owner-panel" hidden>
-      <header class="hub-directory-head"><div><span class="hub-kicker">CONTROL PRIVADO</span><h2>Cuentas y<br/><em>respaldo.</em></h2><p>Solo la cuenta propietaria puede ver correos, eliminar cuentas y descargar el respaldo del directorio.</p></div><span class="lux-owner-panel-actions"><button type="button" onclick="window.luxHub.backup()">DESCARGAR RESPALDO</button><button type="button" onclick="window.luxHub.showAdminSummary()">← VOLVER AL PANEL</button></span></header>
-      <div class="lux-owner-notice">🔒 Solo tú ves correos y cuentas. Al eliminar una cuenta se borran también su perfil, victorias, placas, banner e imágenes.</div>
+      <header class="hub-directory-head"><div><span class="hub-kicker">CONTROL PRIVADO</span><h2>Cuentas, roles y<br/><em>respaldo.</em></h2><p>Solo la cuenta propietaria puede ver correos, nombrar líderes o moderadores, eliminar cuentas y descargar el respaldo.</p></div><span class="lux-owner-panel-actions"><button type="button" onclick="window.luxHub.backup()">DESCARGAR RESPALDO</button><button type="button" onclick="window.luxHub.showAdminSummary()">← VOLVER AL PANEL</button></span></header>
+      <div class="lux-owner-notice">🔒 Solo tú ves los correos y cambias los roles. Un líder administra integrantes y victorias; un moderador puede revisar victorias. La cuenta owner nunca puede modificarse desde aquí.</div>
       <div id="lux-owner-accounts" class="lux-owner-accounts"></div>
     </section>`);
   }
@@ -774,10 +774,33 @@
         const connected = String(row.providers || '').split(',').map(item => item.trim()).filter(Boolean);
         const profile = state.directory.get(row.user_id);
         const canDelete = row.user_id !== state.user?.id;
-        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${row.display_name === 'Jugador' ? 'PERFIL PENDIENTE' : 'PERFIL ACTIVO'} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div><span class="lux-owner-actions">${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>SIN PERFIL</em>'}${canDelete ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(row.user_id)}')">ELIMINAR</button>` : '<em>CUENTA OWNER</em>'}</span></article>`;
+        const currentRole = ['owner','leader','moderator','member'].includes(row.role) ? row.role : 'member';
+        const roleOptions = ['member','moderator','leader'].map(role => `<option value="${role}"${currentRole === role ? ' selected' : ''}>${esc(roleLabel(role).toUpperCase())}</option>`).join('');
+        const roleEditor = canDelete ? `<label class="lux-owner-role-field"><span>ROL</span><select id="lux-account-role-${esc(row.user_id)}" aria-label="Rol de ${esc(row.display_name || 'Jugador')}">${roleOptions}</select></label><button type="button" class="lux-role-save" onclick="window.luxSupabase.setAccountRole('${esc(row.user_id)}')">GUARDAR ROL</button>` : '<em>CUENTA OWNER</em>';
+        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${esc(roleLabel(currentRole).toUpperCase())} · ${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${row.display_name === 'Jugador' ? 'PERFIL PENDIENTE' : 'PERFIL ACTIVO'} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div><span class="lux-owner-actions">${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>SIN PERFIL</em>'}${roleEditor}${canDelete ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(row.user_id)}')">ELIMINAR</button>` : ''}</span></article>`;
       }).join('') : '<p class="hub-empty">Todavía no hay cuentas registradas.</p>';
     } catch (error) {
       target.innerHTML = `<p class="hub-empty">No se pudo cargar el control de cuentas: ${esc(errorMessage(error))}</p>`;
+    }
+  }
+
+  async function setAccountRole(id) {
+    if (!state.isOwner || !id || id === state.user?.id) return;
+    const select = $(`lux-account-role-${id}`);
+    const nextRole = select?.value;
+    if (!['member','moderator','leader'].includes(nextRole)) return;
+    const account = state.directory.get(id);
+    const name = account?.display_name || 'esta cuenta';
+    if (!window.confirm(`¿Cambiar el rol de ${name} a ${roleLabel(nextRole)}?`)) return;
+    if (select) select.disabled = true;
+    try {
+      await rpc('owner_set_member_role', { p_user_id:id, p_role:nextRole });
+      state.roles.set(id, nextRole);
+      toast(`✅ ${name.toUpperCase()} AHORA ES ${roleLabel(nextRole).toUpperCase()}`);
+      await showOwnerAccounts();
+    } catch (error) {
+      if (select) select.disabled = false;
+      toast(`⚠️ ${errorMessage(error, 'NO SE PUDO CAMBIAR EL ROL').toUpperCase()}`);
     }
   }
 
@@ -1258,7 +1281,7 @@
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
     ensureMemberDirectory();
     ensureSimpleExperience();
-    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview };
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, setAccountRole, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview };
     hydrateAccount().then(async user => {
       await renderPublic();
       if (user && arrivedFromOAuth) {
