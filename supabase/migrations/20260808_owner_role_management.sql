@@ -13,7 +13,7 @@ set search_path = public, auth
 as $$
 declare
   requested_role public.clan_role;
-  current_role public.clan_role;
+  target_existing_role public.clan_role;
 begin
   if not public.is_clan_owner() then
     raise exception 'No autorizado';
@@ -32,11 +32,11 @@ begin
   end if;
 
   select roles.role
-    into current_role
+    into target_existing_role
     from public.user_roles as roles
    where roles.user_id = p_user_id;
 
-  if current_role = 'owner'::public.clan_role then
+  if target_existing_role = 'owner'::public.clan_role then
     raise exception 'No se puede modificar otra cuenta owner';
   end if;
 
@@ -44,7 +44,7 @@ begin
 
   insert into public.user_roles (user_id, role)
   values (p_user_id, requested_role)
-  on conflict (user_id) do update
+  on conflict on constraint user_roles_pkey do update
     set role = excluded.role;
 
   return query
