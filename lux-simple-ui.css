@@ -1,0 +1,388 @@
+/* LUX CLAN · interfaz simplificada para móvil y escritorio */
+:root {
+  --lux-panel: #141218;
+  --lux-panel-soft: #1a151b;
+  --lux-border: #ffffff1c;
+  --lux-red: #ff3b24;
+  --lux-gold: #ffd164;
+  --lux-text: #f6f2f2;
+  --lux-muted: #aaa3aa;
+}
+
+.lux-simple-help {
+  margin: -5px 0 16px;
+  color: var(--lux-muted);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+#hub-member .hub-page > *[hidden],
+#hub-admin .hub-page > *[hidden] {
+  display: none !important;
+}
+
+#hub-member .hub-nav,
+#hub-admin .hub-nav,
+#lux-public-screen .hub-nav {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+#hub-member .hub-nav > strong,
+#hub-admin .hub-nav > strong,
+#lux-public-screen .hub-nav > strong {
+  order: 0 !important;
+  width: auto !important;
+  text-align: center;
+}
+
+#hub-member .hub-nav > .lux-nav-actions,
+#hub-admin .hub-nav > .lux-nav-actions,
+#lux-public-screen .hub-nav > .lux-nav-actions {
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+.lux-member-tabs {
+  position: sticky;
+  z-index: 90;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: -22px 0 24px;
+  padding: 8px;
+  border: 1px solid var(--lux-border);
+  border-radius: 16px;
+  background: #0d0c11ee;
+  box-shadow: 0 12px 35px #0008;
+  backdrop-filter: blur(14px);
+}
+
+.lux-member-tabs button {
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #aaa4aa;
+  padding: 8px 6px;
+  font: 1rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .8px;
+  cursor: pointer;
+}
+
+.lux-member-tabs button span {
+  display: block;
+  margin-bottom: 3px;
+  font: 1.1rem 'Segoe UI Emoji', sans-serif;
+}
+
+.lux-member-tabs button:hover,
+.lux-member-tabs button.active {
+  border-color: #ff604b66;
+  background: linear-gradient(145deg, #3b1618, #1b1115);
+  color: #fff;
+}
+
+.lux-member-tabs button.active {
+  box-shadow: inset 0 -3px 0 var(--lux-red);
+}
+
+.lux-member-home > header,
+.lux-admin-menu > header {
+  max-width: 720px;
+  margin-bottom: 20px;
+}
+
+.lux-member-home h2,
+.lux-admin-menu h2,
+.lux-section-heading h2 {
+  margin: 7px 0 8px;
+  color: var(--lux-text);
+  font: clamp(2.3rem, 5vw, 4rem)/.95 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: 1.5px;
+}
+
+.lux-member-home header p,
+.lux-admin-menu header p,
+.lux-section-heading p {
+  margin: 0;
+  color: var(--lux-muted);
+  font-size: .92rem;
+  line-height: 1.55;
+}
+
+.lux-simple-actions,
+.lux-admin-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lux-simple-actions button,
+.lux-admin-actions button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  grid-template-areas: 'icon title action' 'icon copy action';
+  align-items: center;
+  gap: 3px 13px;
+  min-height: 112px;
+  border: 1px solid var(--lux-border);
+  border-radius: 17px;
+  background: linear-gradient(145deg, var(--lux-panel-soft), #0d0c11);
+  color: var(--lux-text);
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.lux-simple-actions button:hover,
+.lux-admin-actions button:hover {
+  border-color: #ff5e477d;
+  background: linear-gradient(145deg, #2a171a, #120e13);
+  transform: translateY(-2px);
+}
+
+.lux-simple-actions i,
+.lux-admin-actions i {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: #ff32151a;
+  font: 1.7rem 'Segoe UI Emoji', sans-serif;
+  font-style: normal;
+}
+
+.lux-simple-actions strong,
+.lux-admin-actions strong {
+  grid-area: title;
+  font: 1.35rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: 1px;
+}
+
+.lux-simple-actions small,
+.lux-admin-actions small {
+  grid-area: copy;
+  color: var(--lux-muted);
+  font-size: .76rem;
+  line-height: 1.4;
+}
+
+.lux-simple-actions b {
+  grid-area: action;
+  color: #ff927e;
+  font: .9rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .8px;
+}
+
+.lux-simple-steps {
+  display: grid;
+  grid-template-columns: auto repeat(3, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #ffd16435;
+  border-radius: 14px;
+  background: #ffd1640a;
+  color: #ddd5c7;
+  font-size: .78rem;
+}
+
+.lux-simple-steps > strong {
+  color: var(--lux-gold);
+}
+
+.lux-simple-steps span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lux-simple-steps span b {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffd1641b;
+  color: var(--lux-gold);
+}
+
+.lux-admin-menu {
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid #ff553b44;
+  border-radius: 19px;
+  background: radial-gradient(circle at 100% 0, #67160f55, transparent 35%), linear-gradient(145deg, #181319, #0d0c11);
+}
+
+.lux-admin-actions {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.lux-admin-actions button {
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-areas: 'icon title' 'icon copy';
+  min-height: 98px;
+}
+
+.lux-admin-actions i {
+  width: 48px;
+  height: 48px;
+}
+
+.lux-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.lux-section-heading > button {
+  flex: 0 0 auto;
+  border: 1px solid #ffffff2b;
+  border-radius: 9px;
+  background: #ffffff09;
+  color: #ddd;
+  padding: 10px 12px;
+  font: 1rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .8px;
+  cursor: pointer;
+}
+
+#hub-member .hub-intro h2,
+#hub-admin .hub-admin-head h2,
+#lux-public-screen .lux-public-head h2 {
+  font-size: clamp(2.8rem, 7vw, 5.2rem) !important;
+  line-height: .88 !important;
+}
+
+#hub-member .hub-page,
+#hub-admin .hub-page,
+#lux-public-screen .hub-page {
+  max-width: 1100px !important;
+  padding-top: 32px !important;
+}
+
+#hub-member .hub-card,
+#hub-admin .hub-card,
+#lux-public-screen .lux-public-card {
+  box-shadow: 0 14px 38px #0004;
+}
+
+#hub-admin .hub-admin-head {
+  padding: 18px 20px;
+  border: 1px solid var(--lux-border);
+  border-radius: 17px;
+  background: var(--lux-panel);
+}
+
+@media (max-width: 760px) {
+  #hub-member .hub-nav,
+  #hub-admin .hub-nav,
+  #lux-public-screen .hub-nav {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    flex-wrap: nowrap !important;
+    padding: 9px 10px !important;
+  }
+
+  #lux-public-screen .hub-nav > strong {
+    display: none;
+  }
+
+  #hub-member .hub-nav > strong,
+  #hub-admin .hub-nav > strong {
+    font-size: .94rem !important;
+    letter-spacing: 1px !important;
+  }
+
+  #hub-member .hub-nav button,
+  #hub-admin .hub-nav button,
+  #lux-public-screen .hub-nav button {
+    padding: 8px !important;
+    font-size: .78rem !important;
+  }
+
+  .lux-member-tabs {
+    gap: 4px;
+    margin: -19px -2px 20px;
+    padding: 5px;
+    border-radius: 13px;
+  }
+
+  .lux-member-tabs button {
+    min-height: 55px;
+    padding: 6px 2px;
+    font-size: .73rem;
+    letter-spacing: .2px;
+  }
+
+  .lux-member-tabs button span {
+    font-size: 1rem;
+  }
+
+  .lux-simple-actions,
+  .lux-admin-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .lux-simple-actions button,
+  .lux-admin-actions button {
+    min-height: 96px;
+    padding: 14px;
+  }
+
+  .lux-simple-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .lux-section-heading {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .lux-section-heading > button {
+    justify-self: start;
+  }
+
+  .lux-admin-menu {
+    padding: 16px 13px;
+  }
+
+  #hub-member .hub-page,
+  #hub-admin .hub-page,
+  #lux-public-screen .hub-page {
+    padding: 28px 10px 75px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  #hub-member .hub-nav > strong small,
+  #hub-admin .hub-nav > strong small {
+    display: none;
+  }
+
+  .lux-simple-actions button {
+    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-areas: 'icon title' 'icon copy';
+  }
+
+  .lux-simple-actions i {
+    width: 46px;
+    height: 46px;
+  }
+
+  .lux-simple-actions b {
+    display: none;
+  }
+}

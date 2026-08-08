@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v30';
+const CACHE_NAME = 'lux-clan-editor-offline-v31';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './supabase-client-config.js',
   './prototipo-supabase.js',
+  './lux-simple-ui.css',
   './ChatGPT%20Image%207%20ago%202026%2C%2006_27_37%20a.m..png'
 ];
 

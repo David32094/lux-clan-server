@@ -370,20 +370,21 @@
     const publicNav = document.querySelector('#lux-public-screen .hub-nav');
     if (publicNav) {
       const accountActions = state.user
-        ? `<button type="button" onclick="window.luxSupabase.showMyProfile()">MI PERFIL</button>${state.isStaff ? '<button type="button" onclick="window.luxAccess.loginLeader()">PANEL</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
-        : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR CON GOOGLE</button>';
-      publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxAccess.openPublic()">⚡ LUX CLAN</button><strong>CLASIFICACIÓN</strong><span class="lux-nav-actions">${accountActions}</span>`;
+        ? `<button type="button" onclick="window.luxSupabase.openMember('home')">MI CUENTA</button>${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
+        : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR</button>';
+      publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxAccess.openPublic()">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`;
     }
 
     const memberNav = document.querySelector('#hub-member .hub-nav');
     if (memberNav) {
-      memberNav.innerHTML = `<button type="button" onclick="window.luxAccess.openPublic()">← INICIO</button><strong>MI ESPACIO<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions"><button type="button" onclick="window.luxSupabase.showMyProfile()">PERFIL</button><button type="button" onclick="window.luxSupabase.showMemberDirectory()">INTEGRANTES</button><button type="button" onclick="window.luxSupabase.showMyVictories()">VICTORIAS</button><button type="button" onclick="window.luxSupabase.downloadMyBanner()">BANNER ↓</button>${state.isStaff ? '<button type="button" onclick="window.luxAccess.loginLeader()">PANEL</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      memberNav.innerHTML = `<button type="button" onclick="window.luxAccess.openPublic()">← CLASIFICACIÓN</button><strong>MI CUENTA<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions">${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
     }
 
     const adminNav = document.querySelector('#hub-admin .hub-nav');
     if (adminNav) {
-      adminNav.innerHTML = `<button type="button" onclick="window.luxAccess.openPublic()">← INICIO</button><strong>PANEL DE LÍDER<small id="lux-leader-session">${state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido'}</small></strong><span class="lux-nav-actions"><button type="button" onclick="window.luxHub.showAdminSummary()">RESUMEN</button><button type="button" onclick="window.luxHub.showDirectory()">INTEGRANTES</button>${state.isLeader ? '<button type="button" onclick="window.luxPlates.show()">PLACAS</button>' : ''}<button type="button" onclick="window.luxHub.openEditor(true)">EDITOR</button><button type="button" onclick="window.luxSupabase.showMyProfile()">MI PERFIL</button>${state.isOwner ? '<button type="button" class="lux-owner-nav" onclick="window.luxSupabase.showOwnerAccounts()">ADMINISTRACIÓN</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      adminNav.innerHTML = `<button type="button" onclick="window.luxSupabase.openMember('home')">← MI CUENTA</button><strong>ADMINISTRACIÓN<small id="lux-leader-session">${state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido'}</small></strong><span class="lux-nav-actions"><button type="button" onclick="window.luxAccess.openPublic()">CLASIFICACIÓN</button><button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
     }
+    renderAdminMenu();
   }
   function renderAccountState() {
     const note = document.querySelector('.hub-local');
@@ -392,6 +393,95 @@
     if (leader) leader.textContent = state.user && state.isStaff ? `${roleLabel()} · cuenta verificada` : 'Acceso con cuenta';
     document.body.classList.toggle('lux-supabase-ready', Boolean(state.user));
     renderNavigation();
+  }
+
+  function ensureSimpleExperience() {
+    const publicHead = document.querySelector('#lux-public-screen .lux-public-head');
+    if (publicHead) {
+      const kicker = publicHead.querySelector('.hub-kicker');
+      const title = publicHead.querySelector('h2');
+      const copy = publicHead.querySelector('p');
+      if (kicker) kicker.textContent = 'RESULTADOS DEL CLAN';
+      if (title) title.innerHTML = 'Clasificación<br/><em>del clan.</em>';
+      if (copy) copy.textContent = 'Consulta los jugadores, sus estadísticas y las capturas que ya fueron aprobadas.';
+    }
+    $('lux-public-podium')?.closest('.lux-public-card')?.remove();
+    const publicRankingCard = $('lux-public-ranking')?.closest('.lux-public-card');
+    if (publicRankingCard) {
+      const title = publicRankingCard.querySelector('h3');
+      if (title) title.textContent = 'Jugadores';
+      if (!publicRankingCard.querySelector('.lux-simple-help')) title?.insertAdjacentHTML('afterend', '<p class="lux-simple-help">Toca un jugador para abrir su perfil y ver sus victorias aprobadas.</p>');
+    }
+
+    const memberPage = document.querySelector('#hub-member .hub-page');
+    if (memberPage && !$('lux-member-tabs')) {
+      memberPage.insertAdjacentHTML('afterbegin', `<div id="lux-member-tabs" class="lux-member-tabs" aria-label="Secciones de mi cuenta">
+        <button type="button" data-member-section="home" onclick="window.luxSupabase.openMember('home')"><span>⌂</span>INICIO</button>
+        <button type="button" data-member-section="profile" onclick="window.luxSupabase.showMyProfile()"><span>👤</span>MI PERFIL</button>
+        <button type="button" data-member-section="victories" onclick="window.luxSupabase.showMyVictories()"><span>🏆</span>SUBIR VICTORIA</button>
+        <button type="button" data-member-section="directory" onclick="window.luxSupabase.showMemberDirectory()"><span>👥</span>INTEGRANTES</button>
+      </div>`);
+      $('lux-member-tabs').insertAdjacentHTML('afterend', `<section id="lux-member-home" class="lux-member-home">
+        <header><span class="hub-kicker">MI CUENTA</span><h2>¿Qué quieres hacer?</h2><p>Elige una opción. Solo verás la parte que necesitas.</p></header>
+        <div class="lux-simple-actions">
+          <button type="button" onclick="window.luxSupabase.showMyProfile()"><i>👤</i><strong>Completar mi perfil</strong><small>Cambia tu nombre, edad, país o foto.</small><b>ABRIR</b></button>
+          <button type="button" onclick="window.luxSupabase.showMyVictories()"><i>🏆</i><strong>Subir una victoria</strong><small>Envía una captura para que sea revisada.</small><b>ABRIR</b></button>
+          <button type="button" onclick="window.luxSupabase.showMemberDirectory()"><i>👥</i><strong>Ver integrantes</strong><small>Mira perfiles, estadísticas y capturas.</small><b>ABRIR</b></button>
+          <button type="button" onclick="window.luxSupabase.downloadMyBanner()"><i>🖼️</i><strong>Descargar mi banner</strong><small>Se genera con los datos guardados en tu perfil.</small><b>DESCARGAR</b></button>
+        </div>
+        <div class="lux-simple-steps"><strong>¿Cómo funciona?</strong><span><b>1</b> Completa tu perfil</span><span><b>2</b> Sube una victoria</span><span><b>3</b> Espera la aprobación</span></div>
+      </section>`);
+    }
+    const memberIntroTitle = document.querySelector('#hub-member .hub-intro h2');
+    const memberIntroCopy = document.querySelector('#hub-member .hub-intro p');
+    if (memberIntroTitle) memberIntroTitle.textContent = 'Mi perfil';
+    if (memberIntroCopy) memberIntroCopy.textContent = 'Guarda aquí tu nombre, edad, país y foto. Esta información también completa tu banner.';
+    const winTitle = document.querySelector('#hub-member .hub-win h3');
+    const winCopy = document.querySelector('#hub-member .hub-win p');
+    if (winTitle) winTitle.textContent = 'Subir una victoria';
+    if (winCopy) winCopy.textContent = 'Elige el modo, selecciona la captura y envíala. Solo contará cuando un administrador la apruebe.';
+    const historyTitle = document.querySelector('#hub-member .hub-history h3');
+    if (historyTitle) historyTitle.textContent = 'Mis capturas';
+
+    const adminPage = document.querySelector('#hub-admin .hub-page');
+    if (adminPage && !$('lux-admin-menu')) adminPage.insertAdjacentHTML('afterbegin', '<section id="lux-admin-menu" class="lux-admin-menu"></section>');
+    const adminTitle = document.querySelector('#hub-admin .hub-admin-head h2');
+    const adminCopy = document.querySelector('#hub-admin .hub-admin-head p');
+    if (adminTitle) adminTitle.innerHTML = 'Resumen<br/><em>del clan.</em>';
+    if (adminCopy) adminCopy.textContent = 'Esta es la vista rápida. Usa las opciones de arriba para realizar una tarea.';
+    const directoryBack = document.querySelector('#hub-member-directory .hub-directory-head>button');
+    const platesBack = document.querySelector('#lux-plates-panel .lux-plates-head>button');
+    if (directoryBack) directoryBack.textContent = '← VOLVER AL PANEL';
+    if (platesBack) platesBack.textContent = '← VOLVER AL PANEL';
+    renderAdminMenu();
+  }
+
+  function renderAdminMenu() {
+    const target = $('lux-admin-menu');
+    if (!target) return;
+    target.innerHTML = `<header><span class="hub-kicker">PANEL DE CONTROL</span><h2>¿Qué necesitas administrar?</h2><p>Elige una sola tarea para trabajar sin distracciones.</p></header><div class="lux-admin-actions">
+      <button type="button" onclick="window.luxSupabase.showAdminReview()"><i>✅</i><strong>Revisar victorias</strong><small>Aprobar o rechazar las capturas pendientes.</small></button>
+      <button type="button" onclick="window.luxHub.showDirectory()"><i>👥</i><strong>Integrantes</strong><small>Ver perfiles, banners y expulsar miembros.</small></button>
+      ${state.isLeader ? '<button type="button" onclick="window.luxPlates.show()"><i>🏅</i><strong>Placas</strong><small>Registrar y consultar las placas del clan.</small></button>' : ''}
+      <button type="button" onclick="window.luxHub.openEditor(true)"><i>🎨</i><strong>Editor de banners</strong><small>Crear imágenes para integrantes y enfrentamientos.</small></button>
+      ${state.isOwner ? '<button type="button" onclick="window.luxSupabase.showOwnerAccounts()"><i>🔒</i><strong>Cuentas y respaldo</strong><small>Gestionar correos, cuentas y copias de seguridad.</small></button>' : ''}
+    </div>`;
+  }
+
+  function showMemberSection(section = 'home') {
+    const page = document.querySelector('#hub-member .hub-page');
+    if (!page) return;
+    ensureSimpleExperience();
+    const groups = {
+      home:[$('lux-member-home'), $('lux-member-top')],
+      profile:[page.querySelector('.hub-intro'), page.querySelector('.hub-grid')],
+      victories:[page.querySelector('.hub-win'), page.querySelector('.hub-history')],
+      directory:[$('lux-member-directory')]
+    };
+    const visible = new Set((groups[section] || groups.home).filter(Boolean));
+    [...page.children].forEach(child => { child.hidden = child.id !== 'lux-member-tabs' && !visible.has(child); });
+    page.querySelectorAll('[data-member-section]').forEach(button => button.classList.toggle('active', button.dataset.memberSection === section));
+    window.scrollTo({ top:0, behavior:'smooth' });
   }
 
   async function renderPublic() {
@@ -449,18 +539,14 @@
   }
   async function showMemberDirectory() {
     if (!state.user) { openLogin('member'); return; }
-    window.luxHub.setScreen('member');
-    await renderMember();
+    await openMember('directory');
     renderMemberDirectory();
-    setTimeout(() => $('lux-member-directory')?.scrollIntoView({ behavior:'smooth', block:'start' }), 40);
   }
   async function showMyProfile() {
-    await openMember();
-    setTimeout(() => document.querySelector('#hub-member .hub-profile')?.scrollIntoView({ behavior:'smooth', block:'start' }), 40);
+    await openMember('profile');
   }
   async function showMyVictories() {
-    await openMember();
-    setTimeout(() => document.querySelector('#hub-member .hub-win')?.scrollIntoView({ behavior:'smooth', block:'start' }), 40);
+    await openMember('victories');
   }
   function ensurePublicPlates() {
     const page = document.querySelector('#lux-public-screen .hub-page');
@@ -648,10 +734,12 @@
     if (!state.isStaff) return;
     const page = $('hub-admin')?.querySelector('.hub-page');
     if (!page) return;
-    const specialPanels = new Set(['hub-member-directory', 'lux-plates-panel', 'lux-owner-panel']);
-    [...page.children].forEach(child => { child.hidden = specialPanels.has(child.id) || child.classList.contains('hub-ranking'); });
+    ensureSimpleExperience();
+    const visible = new Set([$('lux-admin-menu'), page.querySelector('.hub-admin-head'), page.querySelector('.hub-admin-stats')].filter(Boolean));
+    [...page.children].forEach(child => { child.hidden = !visible.has(child); });
     await renderAdmin();
     renderNavigation();
+    window.scrollTo({ top:0, behavior:'smooth' });
   }
 
   function ensureOwnerPanel() {
@@ -663,7 +751,7 @@
       return;
     }
     if (!$('lux-owner-panel')) page.insertAdjacentHTML('beforeend', `<section id="lux-owner-panel" class="lux-owner-panel" hidden>
-      <header class="hub-directory-head"><div><span class="hub-kicker">CONTROL PRIVADO</span><h2>Administración<br/><em>del clan.</em></h2><p>Solo la cuenta propietaria puede ver correos, eliminar cuentas y descargar el respaldo del directorio.</p></div><span class="lux-owner-panel-actions"><button type="button" onclick="window.luxHub.backup()">RESPALDO JSON</button><button type="button" onclick="window.luxHub.showAdminSummary()">← RESUMEN</button></span></header>
+      <header class="hub-directory-head"><div><span class="hub-kicker">CONTROL PRIVADO</span><h2>Cuentas y<br/><em>respaldo.</em></h2><p>Solo la cuenta propietaria puede ver correos, eliminar cuentas y descargar el respaldo del directorio.</p></div><span class="lux-owner-panel-actions"><button type="button" onclick="window.luxHub.backup()">DESCARGAR RESPALDO</button><button type="button" onclick="window.luxHub.showAdminSummary()">← VOLVER AL PANEL</button></span></header>
       <div class="lux-owner-notice">🔒 Solo tú ves correos y cuentas. Al eliminar una cuenta se borran también su perfil, victorias, placas, banner e imágenes.</div>
       <div id="lux-owner-accounts" class="lux-owner-accounts"></div>
     </section>`);
@@ -724,7 +812,18 @@
   }
   function ensureReviewPanel() {
     const page = $('hub-admin')?.querySelector('.hub-page');
-    if (page && !$('lux-review-queue')) page.insertAdjacentHTML('beforeend', '<section id="lux-review-queue" class="hub-card lux-review-queue"><span class="hub-kicker">REVISIÓN</span><h3>Victorias pendientes</h3><p>Solo las capturas aprobadas suman puntos al ranking.</p><div id="lux-review-list"></div></section>');
+    if (page && !$('lux-review-queue')) page.insertAdjacentHTML('beforeend', '<section id="lux-review-queue" class="hub-card lux-review-queue" hidden><header class="lux-section-heading"><div><span class="hub-kicker">REVISIÓN</span><h2>Victorias pendientes</h2><p>Abre cada captura y decide si corresponde a una victoria real.</p></div><button type="button" onclick="window.luxHub.showAdminSummary()">← VOLVER AL PANEL</button></header><div id="lux-review-list"></div></section>');
+  }
+  async function showAdminReview() {
+    if (!state.isStaff) return;
+    if (!state.directory.size) await renderAdmin();
+    ensureReviewPanel();
+    const page = $('hub-admin')?.querySelector('.hub-page');
+    const panel = $('lux-review-queue');
+    if (!page || !panel) return;
+    [...page.children].forEach(child => { child.hidden = child !== panel; });
+    panel.hidden = false;
+    window.scrollTo({ top:0, behavior:'smooth' });
   }
   async function renderReviewQueue(rows) {
     ensureReviewPanel();
@@ -925,7 +1024,10 @@
     window.switchTab?.('integrantes');
     window.luxHub.setScreen('editor');
   }
-  function backFromEditor() { window.luxHub.setScreen(state.editorBack); }
+  function backFromEditor() {
+    if (state.editorBack === 'admin') openLeader();
+    else openMember('profile');
+  }
 
   function closeLogin() {
     const modal = $('lux-login-modal');
@@ -984,8 +1086,7 @@
       await hydrateAccount(); 
       if (window.luxAccess?.closeLogin) window.luxAccess.closeLogin();
       if (creating && display_name) { if ($('hub-name')) $('hub-name').value = display_name; await saveProfile(true); }
-      if (state.isStaff) { window.luxHub.setScreen('admin'); await renderAdmin(); }
-      else { window.luxHub.setScreen('member'); await renderMember(); }
+      await openMember('home');
       toast('✅ SESIÓN ABIERTA');
     } catch (error) { toast(`⚠️ ${errorMessage(error, 'NO SE PUDO INICIAR SESIÓN').toUpperCase()}`); }
   }
@@ -1002,14 +1103,19 @@
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
     writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); renderAccountState(); ensureOwnerPanel(); window.luxAccess.openPublic(); toast('SESIÓN CERRADA');
   }
-  async function openMember() {
+  async function openMember(section = 'home') {
     if (!state.user) { openLogin('member'); return; }
-    window.luxHub.setScreen('member'); await renderMember(); renderNavigation();
+    window.luxHub.setScreen('member');
+    await renderMember();
+    showMemberSection(section);
+    renderNavigation();
   }
   async function openLeader() {
     if (!state.user) { openLogin('leader'); return; }
     if (!state.isStaff) { toast('⛔ ESTA CUENTA NO TIENE PERMISOS DE LÍDER'); return; }
-    window.luxHub.setScreen('admin'); await showAdminSummary(); renderNavigation();
+    window.luxHub.setScreen('admin');
+    await showAdminSummary();
+    renderNavigation();
   }
   function installStyles() {
     const style = document.createElement('style');
@@ -1149,17 +1255,12 @@
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
     ensureMemberDirectory();
-    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories };
+    ensureSimpleExperience();
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview };
     hydrateAccount().then(async user => {
       await renderPublic();
       if (user) {
-        if (state.isStaff) {
-          window.luxHub.setScreen('admin');
-          await showAdminSummary();
-        } else {
-          window.luxHub.setScreen('member');
-          await renderMember();
-        }
+        await openMember('home');
       } else {
         window.luxAccess.openPublic();
       }
