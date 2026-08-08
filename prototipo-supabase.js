@@ -145,13 +145,6 @@
     });
     return data?.signedURL ? `${base}/storage/v1${data.signedURL}` : '';
   }
-  async function signedBanner(path) {
-    if (!path) return '';
-    const data = await request(`/storage/v1/object/sign/lux-banners/${path.split('/').map(encodeURIComponent).join('/')}`, {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ expiresIn:300 })
-    });
-    return data?.signedURL ? `${base}/storage/v1${data.signedURL}` : '';
-  }
   function blankModeStats() { return { '1v1':0, '2v2':0, '3v3':0, '4v4':0, Otro:0, total:0 }; }
   function modeStats(rows, status = 'approved') {
     return (rows || []).reduce((stats, row) => {
@@ -434,7 +427,7 @@
     if ($('hub-age')) $('hub-age').value = profile?.age || '';
     if ($('hub-country')) $('hub-country').value = profile?.country_code || '';
     if ($('hub-role')) $('hub-role').value = roleLabel();
-    const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
+    const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : (profile?.avatar_url || '');
     if ($('hub-avatar')) { $('hub-avatar').src = avatar; $('hub-avatar').hidden = !avatar; }
     if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = Boolean(avatar);
     if ($('hub-1v1')) $('hub-1v1').textContent = stats['1v1'];
@@ -473,7 +466,7 @@
     }
     await Promise.all([renderMember(), renderPublic()]);
     if (state.isStaff) await renderAdmin();
-    const updatedAvatarUrl = state.profile?.avatar_path ? publicUrl('lux-avatars', state.profile.avatar_path) : '';
+    const updatedAvatarUrl = state.profile?.avatar_path ? publicUrl('lux-avatars', state.profile.avatar_path) : (state.profile?.avatar_url || '');
     if (updatedAvatarUrl && window.readPlayerFileInteg) {
       try {
         const blob = await fetch(updatedAvatarUrl).then(response => response.blob());
@@ -558,9 +551,7 @@
     return state.isOwner || state.roles.get(id) === 'member';
   }
   function bannerButton(member) {
-    return member.banner_path
-      ? `<button type="button" onclick="window.luxSupabase.downloadStoredBanner('${esc(member.id)}')">BANNER ↓</button>`
-      : '<button type="button" disabled title="El integrante todavía no ha descargado su banner">SIN BANNER</button>';
+    return `<button type="button" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')">BANNER ↓</button>`;
   }
   function removalButton(member, label = 'EXPULSAR') {
     return canRemoveMember(member.id)
@@ -644,7 +635,7 @@
     const sessionLabel = $('lux-leader-session');
     if (sessionLabel) sessionLabel.textContent = state.isOwner ? 'Control privado · cuenta verificada' : `${roleLabel()} · cuenta verificada`;
     const [profiles, victories, ranking, roles] = await Promise.all([
-      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,banner_path,is_public,created_at&order=display_name.asc'),
+      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,avatar_url,banner_path,is_public,created_at&order=display_name.asc'),
       request('/rest/v1/victories?select=id,player_id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc'),
       rpc('get_public_ranking', {}, false),
       rpc('staff_list_member_roles')
@@ -697,29 +688,36 @@
     const signed = await Promise.all(victories.map(async row => ({ ...row, image:await signedEvidence(row.evidence_path).catch(() => '') })));
     const stats = modeStats(victories);
     const pending = victories.filter(row => row.status === 'pending').length;
-    const bannerAction = member.banner_path
-      ? `<button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadStoredBanner('${esc(member.id)}')">DESCARGAR BANNER REAL</button>`
-      : '<button type="button" class="lux-download-avatar" disabled>EL INTEGRANTE AÚN NO GENERÓ SU BANNER</button>';
+    const bannerAction = `<button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')">DESCARGAR BANNER OFICIAL</button>`;
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><div class="lux-player-actions">${bannerAction}${removalButton(member)}</div></div></header><section class="hub-modal-stats lux-player-stats"><div><b>${stats['1v1']}</b><small>1V1</small></div><div><b>${stats['2v2']}</b><small>2V2</small></div><div><b>${stats['3v3']}</b><small>3V3</small></div><div><b>${stats['4v4']}</b><small>4V4</small></div><div><b>${stats.Otro}</b><small>OTRAS</small></div><div><b>${stats.total}</b><small>APROBADAS</small></div><div class="lux-pending-stat"><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }
   function closePlayer() { $('hub-modal').hidden = true; document.body.classList.remove('hub-no-scroll'); }
-  async function downloadStoredBanner(id) {
+  async function downloadOfficialBanner(id) {
     if (!state.isStaff && id !== state.user?.id) return;
     const member = state.directory.get(id) || (id === state.user?.id ? state.profile : null) || (await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=*`))[0];
     if (!member) { toast('⚠️ NO SE ENCONTRÓ EL PERFIL'); return; }
-    if (!member.banner_path) { toast('ℹ️ ESTE INTEGRANTE TODAVÍA NO GENERÓ SU BANNER'); return; }
+    if (typeof window.downloadOfficialMemberBanner !== 'function') { toast('⚠️ EL EDITOR OFICIAL TODAVÍA NO ESTÁ LISTO'); return; }
+    let photoObjectUrl = '';
     try {
-      const signedUrl = await signedBanner(member.banner_path);
-      const blob = await fetch(signedUrl).then(response => { if (!response.ok) throw new Error('No se pudo cargar el banner'); return response.blob(); });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const name = String(member.display_name || 'JUGADOR').toUpperCase().replace(/[^A-Z0-9_-]+/g, '-');
-      link.href = url; link.download = `${name}-LUX-CLAN.png`; link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 15000);
-      toast('✅ BANNER ORIGINAL DEL EDITOR DESCARGADO');
-    } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
+      const avatarUrl = member.avatar_path ? publicUrl('lux-avatars', member.avatar_path) : (member.avatar_url || '');
+      if (avatarUrl) {
+        const blob = await fetch(avatarUrl).then(response => { if (!response.ok) throw new Error('No se pudo cargar la foto del perfil'); return response.blob(); });
+        photoObjectUrl = URL.createObjectURL(blob);
+      }
+      await window.downloadOfficialMemberBanner({
+        name:member.display_name || 'Jugador',
+        age:member.age || '',
+        countryCode:member.country_code || '',
+        photoUrl:photoObjectUrl
+      });
+      toast('✅ BANNER OFICIAL GENERADO CON LOS DATOS DEL PERFIL');
+    } catch (error) {
+      toast(`⚠️ ${errorMessage(error).toUpperCase()}`);
+    } finally {
+      if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
+    }
   }
 
   function ensureRemovalDialog() {
@@ -837,7 +835,7 @@
       if ($('t-edad-integ')) $('t-edad-integ').value = profile?.age || '';
       if ($('t-pais-integ')) $('t-pais-integ').value = profile?.country_code || '';
       window.onFlagInteg?.(); window.renderInteg?.();
-      const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
+      const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : (profile?.avatar_url || '');
       if (avatar && window.readPlayerFileInteg) { try { const blob = await fetch(avatar).then(response => response.blob()); window.readPlayerFileInteg(new File([blob], 'perfil.jpg', { type:'image/jpeg' })); } catch (_) {} }
     }
     window.luxLeaderDemo?.setMode(leader ? 'leader' : 'member');
@@ -985,7 +983,7 @@
   function install() {
     installStyles();
     const oldSetScreen = window.luxHub.setScreen;
-    window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadStoredBanner,
+    window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadOfficialBanner,
       askAdmin:openLeader, confirmAdmin:openLeader, closeAdminKey:() => {}, setRole:() => toast('ℹ️ LOS PERMISOS SE GESTIONAN EN EL SERVIDOR'), removePlayer:requestMemberRemoval };
     window.luxAccess = { ...window.luxAccess, openPublic:() => { oldSetScreen('public'); renderPublic(); }, openLogin, closeLogin, loginMember:openMember, loginLeader:openLeader, renderPublic, renderMemberTop:() => renderPublic() };
     window.luxPlates = { ...window.luxPlates, show:showPlates, add:addPlate, openGallery:openPlateGallery, closeGallery:closePlateGallery, remove:removePlate, renderSelector:renderPlatesSelector, renderRanking:renderPlatesRanking, renderPublic:renderPublic };
@@ -1001,10 +999,10 @@
     const rankingIntro = document.querySelector('#hub-admin .hub-ranking>p');
     if (rankingIntro) rankingIntro.textContent = 'Ordenado por 4v4, 3v3, 2v2, 1v1 y victorias totales.';
     const directoryIntro = document.querySelector('#hub-member-directory .hub-directory-head p');
-    if (directoryIntro) directoryIntro.textContent = 'Consulta perfiles y estadísticas, descarga sus banners originales o expulsa integrantes del clan.';
+    if (directoryIntro) directoryIntro.textContent = 'Consulta perfiles y estadísticas, genera sus banners oficiales o expulsa integrantes del clan.';
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
-    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadStoredBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval };
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval };
     hydrateAccount().then(async user => {
       await renderPublic();
       if (user) {
