@@ -7,6 +7,7 @@
   const SESSION_KEY = 'lux_clan_auth_v1';
   const MAX_AVATAR = 5 * 1024 * 1024;
   const MAX_EVIDENCE = 8 * 1024 * 1024;
+  const AUTH_REDIRECT_VERSION = 'google-v1';
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
@@ -30,8 +31,9 @@
       return;
     }
     const base = String(cfg.url).replace(/\/$/, '');
-    const redirectUrl = window.location.origin + window.location.pathname;
-    window.location.href = `${base}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+    const redirectUrl = new URL(window.location.origin + window.location.pathname);
+    redirectUrl.searchParams.set('auth', AUTH_REDIRECT_VERSION);
+    window.location.href = `${base}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl.href)}`;
   };
 
   if (!config?.url || !config?.publishableKey) {
@@ -110,7 +112,9 @@
     return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
   function emailRedirectUrl() {
-    return `${window.location.origin}${window.location.pathname}`;
+    const redirectUrl = new URL(`${window.location.origin}${window.location.pathname}`);
+    redirectUrl.searchParams.set('auth', AUTH_REDIRECT_VERSION);
+    return redirectUrl.href;
   }
   async function sha256(file) {
     const bytes = await file.arrayBuffer();
