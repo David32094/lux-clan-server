@@ -145,8 +145,23 @@
         }
         return false;
       }
-      const hash = (initialOAuthHash && initialOAuthHash.includes('access_token')) ? initialOAuthHash : (window.location.hash ? window.location.hash.substring(1) : '');
-      if (!hash) return false;
+      
+      // Check hash from URL first, then fallback to sessionStorage backup
+      let hash = window.location.hash ? window.location.hash.substring(1) : '';
+      
+      // If hash is empty or doesn't contain access_token, check sessionStorage backup
+      if (!hash || !hash.includes('access_token')) {
+        try {
+          const backup = sessionStorage.getItem('lux_oauth_hash_backup');
+          if (backup && backup.includes('access_token')) {
+            hash = backup.substring(backup.startsWith('#') ? 1 : 0);
+            console.log('[OAuth] Retrieved hash from sessionStorage backup');
+          }
+        } catch (_) {}
+      }
+      
+      if (!hash || !hash.includes('access_token')) return false;
+      
       const params = new URLSearchParams(hash);
       const hashError = params.get('error') || params.get('error_description');
       if (hashError) {
@@ -170,13 +185,22 @@
           token_type: token_type || 'bearer'
         };
         writeSession(session);
-        try { sessionStorage.removeItem('lux_oauth_hash'); } catch (_) {}
+        
+        // Clear both backup storages
+        try { 
+          sessionStorage.removeItem('lux_oauth_hash');
+          sessionStorage.removeItem('lux_oauth_hash_backup');
+        } catch (_) {}
+        
         if (window.history && window.history.replaceState) {
           window.history.replaceState(null, '', window.location.pathname);
         }
+        console.log('[OAuth] Session saved successfully to localStorage');
         return true;
       }
-    } catch (_) {}
+    } catch (error) {
+      console.error('[OAuth] Parse error:', error);
+    }
     return false;
   }
   function loginWithGoogle() {
