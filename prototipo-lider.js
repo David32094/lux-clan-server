@@ -8,7 +8,8 @@
 
   const MEMBERS_KEY = 'lux_clan_demo_members_v1';
   const MODE_KEY = 'lux_clan_demo_mode_v1';
-  const LEADER_CODE = 'LUX2026';
+  // El modo de líder de producción se controla por roles del servidor.
+  const LEADER_CODE = null;
   let mode = 'member';
 
   const roleMeta = {

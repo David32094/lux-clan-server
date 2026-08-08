@@ -26,10 +26,11 @@ jobs:
           node --check prototipo-clan-hub.js
           node --check prototipo-accesos.js
           node --check prototipo-placas.js
+          node --check prototipo-supabase.js
       - name: Evitar claves privadas en el sitio
         run: |
-          test ! -f supabase-client-config.js
           test ! -f .env
+          ! rg --glob '*.js' --glob '*.html' 'sb_secret_' .
 
   deploy:
     needs: validate
@@ -44,6 +45,14 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Create public Supabase configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+          node -e "const fs=require('fs'); const config={url:process.env.SUPABASE_URL,publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY}; fs.writeFileSync('supabase-client-config.js','window.LUX_SUPABASE_CONFIG = Object.freeze(' + JSON.stringify(config) + ');\\n');"
       - name: Preparar sitio estático
         uses: actions/upload-pages-artifact@v4
         with:

@@ -148,7 +148,10 @@ drop policy if exists "members update only their profile" on public.profiles;
 create policy "members update only their profile" on public.profiles
 for update to authenticated
 using (id = (select auth.uid()))
-with check (id = (select auth.uid()));
+with check (
+  id = (select auth.uid())
+  and (avatar_path is null or avatar_path like (select auth.uid()::text || '/%'))
+);
 
 drop policy if exists "staff can update profiles" on public.profiles;
 create policy "staff can update profiles" on public.profiles
@@ -240,6 +243,34 @@ $$;
 revoke all on function public.review_victory(uuid, public.victory_status, text) from public;
 grant execute on function public.review_victory(uuid, public.victory_status, text) to authenticated;
 
+-- ComprobaciÃ³n previa a la carga del archivo. No revela quiÃ©n subiÃ³ una
+-- captura igual y pone un freno a la creaciÃ³n automatizada de evidencias.
+create or replace function public.can_submit_victory(p_evidence_sha256 text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or p_evidence_sha256 !~ '^[0-9a-f]{64}$' then
+    return false;
+  end if;
+
+  return not exists (
+    select 1 from public.victories where evidence_sha256 = p_evidence_sha256
+  ) and (
+    select count(*) from public.victories
+    where player_id = auth.uid()
+      and status = 'pending'
+      and created_at > now() - interval '24 hours'
+  ) < 8;
+end;
+$$;
+
+revoke all on function public.can_submit_victory(text) from public;
+grant execute on function public.can_submit_victory(text) to authenticated;
+
 -- El ranking devuelve únicamente datos pensados para ser públicos: nunca la
 -- ruta de la captura, la edad, el correo ni datos de inicio de sesión.
 create or replace function public.get_public_ranking()
@@ -316,12 +347,16 @@ revoke all on function public.get_public_player_plates(uuid) from public;
 grant execute on function public.get_public_player_plates(uuid) to anon, authenticated;
 
 -- Buckets: avatares y placas son públicos; capturas de victoria permanecen
--- privadas para el jugador y el equipo de líderes.
-insert into storage.buckets (id, name, public)
-values ('lux-avatars', 'lux-avatars', true),
-       ('lux-evidence', 'lux-evidence', false),
-       ('lux-plates', 'lux-plates', true)
-on conflict (id) do update set public = excluded.public;
+-- privadas para el jugador y el equipo de líderes. Los límites viven en el
+-- servidor, por lo que no dependen de las validaciones del navegador.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('lux-avatars', 'lux-avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
+       ('lux-evidence', 'lux-evidence', false, 8388608, array['image/jpeg', 'image/png', 'image/webp']),
+       ('lux-plates', 'lux-plates', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "public avatar read" on storage.objects;
 create policy "public avatar read" on storage.objects

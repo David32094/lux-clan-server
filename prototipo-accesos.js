@@ -3,11 +3,9 @@
   'use strict';
   const STORAGE='lux_clan_demo_members_v1';
   const SESSION='lux_clan_local_session_v1';
-  const LEADERS=[
-    {id:'owner',name:'David',role:'Propietario',pin:'LUX2026'},
-    {id:'admin',name:'Líder 2',role:'Administradora',pin:'LUX2027'},
-    {id:'mod',name:'Líder 3',role:'Moderadora',pin:'LUX2028'}
-  ];
+  // El acceso real se instala en prototipo-supabase.js. Nunca guardes
+  // contraseñas compartidas ni PINs de líderes dentro de un archivo público.
+  const LEADERS=[];
   const $=id=>document.getElementById(id);
   const escape=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast=message=>window.showToast?.(message);

@@ -2,7 +2,8 @@
 (() => {
   'use strict';
   const STORAGE = 'lux_clan_demo_members_v1';
-  const KEY = 'LUX2026';
+  // El panel real valida la sesión y el rol en Supabase; no existe clave local.
+  const KEY = null;
   const MAX_CAPTURES = 8;
   const ROLES = { 'Líder':['👑','leader'], 'Sub-líder':['⚡','sub'], 'Reclutador':['📣','recruiter'], 'Competitivo':['🎯','competitive'], 'Creador':['🎨','creator'], 'Integrante':['🛡️','member'] };
   let avatar = '';
@@ -72,7 +73,7 @@
     return true;
   }
   function injectAccessModal(){
-    document.body.insertAdjacentHTML('beforeend', `<div id="hub-key-modal" hidden><div class="hub-key-box"><button type="button" class="hub-close" onclick="window.luxHub.closeAdminKey()">×</button><span class="hub-kicker">ACCESO DE LÍDER</span><h2>Panel del clan</h2><p>Escribe la clave temporal para abrir las estadísticas y el ranking.</p><input id="hub-key-input" type="password" inputmode="text" placeholder="Clave de líder" onkeydown="if(event.key==='Enter')window.luxHub.confirmAdmin()"/><button type="button" onclick="window.luxHub.confirmAdmin()">ABRIR PANEL</button><small>Prueba local · clave actual: LUX2026</small></div></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div id="hub-key-modal" hidden><div class="hub-key-box"><button type="button" class="hub-close" onclick="window.luxHub.closeAdminKey()">×</button><span class="hub-kicker">ACCESO DE LÍDER</span><h2>Panel del clan</h2><p>Accede con una cuenta autorizada; los permisos se verifican en el servidor.</p><button type="button" onclick="window.luxAccess.openLogin('leader')">INICIAR SESIÓN</button><small>No se utilizan claves compartidas.</small></div></div>`);
     const style=document.createElement('style');
     style.textContent=`#hub-key-modal{position:fixed;z-index:100000;inset:0;display:grid;place-items:center;padding:18px;background:#000b;backdrop-filter:blur(7px)}#hub-key-modal[hidden]{display:none}.hub-key-box{position:relative;width:min(390px,100%);padding:25px;border:1px solid #ff220077;border-radius:17px;background:#121018;box-shadow:0 24px 70px #000}.hub-key-box h2{margin:8px 0;color:#fff;font:2.3rem 'Bebas Neue',Impact,sans-serif;letter-spacing:2px}.hub-key-box p{color:#aaa4aa;font-size:.82rem;line-height:1.5}.hub-key-box input{width:100%;height:46px;margin:17px 0 8px;border:1px solid #ff220055;border-radius:9px;background:#050507;color:#fff;padding:9px 11px;font:16px 'Segoe UI',sans-serif;outline:none}.hub-key-box input:focus{border-color:#ff2200}.hub-key-box>button:not(.hub-close){width:100%;border:0;border-radius:9px;background:linear-gradient(135deg,#ff3119,#a80000);color:#fff;padding:11px;font:1.1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.5px;cursor:pointer}.hub-key-box small{display:block;margin-top:13px;color:#837e85;font-size:.67rem}`;
     style.textContent += `#hub-modal-body .hub-close{z-index:10;width:38px;height:38px;display:grid;place-items:center;border:1px solid #ffffff2e;border-radius:50%;background:#0a090dcc;color:#fff;line-height:1}#hub-modal-body .hub-close:hover{border-color:#ff5a42;color:#ff9d8b}.hub-remove-confirm{margin-top:15px;padding:14px;border:1px solid #ff4c4566;border-radius:11px;background:#310b0d}.hub-remove-confirm>b{display:block;color:#ffb1a4;font:1.1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px}.hub-remove-confirm p{margin:6px 0 12px;color:#c6a4a3;font-size:.76rem;line-height:1.4}.hub-remove-confirm div{display:flex;gap:8px}.hub-remove-confirm button{flex:1;border:1px solid #ffffff33;border-radius:7px;background:#ffffff0d;color:#eee;padding:8px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.hub-remove-confirm .danger{border-color:#ff5b4b;background:#a90000;color:#fff}`;
