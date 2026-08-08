@@ -170,6 +170,43 @@
   font-style: normal;
 }
 
+.lux-owner-role-field {
+  display: inline-grid;
+  grid-template-columns: auto minmax(118px, 1fr);
+  align-items: center;
+  gap: 6px;
+  color: #ffca55;
+  font: .76rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .7px;
+}
+
+.lux-owner-role-field select {
+  height: 34px;
+  border: 1px solid #e8b94b66;
+  border-radius: 7px;
+  background: #09090d;
+  color: #fff;
+  padding: 5px 8px;
+  font: .75rem 'Segoe UI', sans-serif;
+}
+
+.lux-owner-role-field select:disabled {
+  opacity: .55;
+}
+
+.lux-owner-account .lux-owner-role-field > span {
+  overflow: visible !important;
+  color: #ffca55 !important;
+  font: .76rem 'Bebas Neue', Impact, sans-serif !important;
+  letter-spacing: .7px !important;
+}
+
+.lux-role-save {
+  border-color: #d6a72f99 !important;
+  background: #d6a72f1c !important;
+  color: #ffdd7f !important;
+}
+
 .lux-simple-actions strong,
 .lux-admin-actions strong {
   grid-area: title;
@@ -373,6 +410,11 @@
 
   .lux-admin-menu {
     padding: 16px 13px;
+  }
+
+  .lux-owner-role-field {
+    flex: 1 1 100%;
+    grid-template-columns: 34px minmax(0, 1fr);
   }
 
   #hub-member .hub-page,
