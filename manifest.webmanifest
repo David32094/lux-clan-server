@@ -1,7 +1,7 @@
 {
-  "name": "LUX CLAN · Editor de Banners",
+  "name": "LUX CLAN SERVER",
   "short_name": "LUX CLAN",
-  "description": "Editor oficial de banners de LUX CLAN.",
+  "description": "Perfiles, victorias y clasificación oficial de LUX CLAN.",
   "lang": "es",
   "start_url": "./index.html?app=1",
   "scope": "./",
@@ -11,7 +11,7 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "./ChatGPT%20Image%207%20ago%202026%2C%2006_27_37%20a.m..png",
+      "src": "./ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png",
       "sizes": "1254x1254",
       "type": "image/png",
       "purpose": "any maskable"

@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v32';
+const CACHE_NAME = 'lux-clan-editor-offline-v33';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -10,7 +10,7 @@ const APP_SHELL = [
   './supabase-client-config.js',
   './prototipo-supabase.js',
   './lux-simple-ui.css',
-  './ChatGPT%20Image%207%20ago%202026%2C%2006_27_37%20a.m..png'
+  './ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png'
 ];
 
 async function withMobileTouchFix(response) {
