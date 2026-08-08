@@ -111,6 +111,44 @@
     return data?.signedURL ? `${base}/storage/v1${data.signedURL}` : '';
   }
 
+  function parseOAuthCallback() {
+    try {
+      const hash = window.location.hash ? window.location.hash.substring(1) : '';
+      if (!hash) return false;
+      const params = new URLSearchParams(hash);
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      const expires_in = params.get('expires_in');
+      const token_type = params.get('token_type');
+      if (access_token) {
+        const expires_at = Math.floor(Date.now() / 1000) + (parseInt(expires_in, 10) || 3600);
+        const session = {
+          access_token,
+          refresh_token,
+          expires_in: parseInt(expires_in, 10) || 3600,
+          expires_at,
+          token_type: token_type || 'bearer'
+        };
+        writeSession(session);
+        if (window.history && window.history.replaceState) {
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState(null, '', cleanUrl);
+        }
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+  function loginWithGoogle() {
+    if (!config?.url) {
+      toast('⚠️ CONFIGURACIÓN DE SUPABASE PENDIENTE');
+      return;
+    }
+    const redirectUrl = emailRedirectUrl();
+    const authorizeUrl = `${base}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+    window.location.href = authorizeUrl;
+  }
+
   async function refreshSession() {
     const current = state.session || readSession();
     if (!current?.refresh_token) return null;
@@ -121,6 +159,7 @@
     return data;
   }
   async function validateSession() {
+    parseOAuthCallback();
     const saved = readSession();
     if (!saved?.access_token) return null;
     writeSession(saved);
@@ -248,6 +287,18 @@
       body:JSON.stringify({ display_name, age, country_code, country_name:countryName(), avatar_path })
     });
     await loadProfile();
+    if (state.profile && state.user?.id) {
+      state.directory.set(state.user.id, state.profile);
+    }
+    await Promise.all([renderMember(), renderPublic()]);
+    if (state.isStaff) await renderAdmin();
+    const updatedAvatarUrl = state.profile?.avatar_path ? publicUrl('lux-avatars', state.profile.avatar_path) : '';
+    if (updatedAvatarUrl && window.readPlayerFileInteg) {
+      try {
+        const blob = await fetch(updatedAvatarUrl).then(response => response.blob());
+        window.readPlayerFileInteg(new File([blob], 'perfil.jpg', { type:'image/jpeg' }));
+      } catch (_) {}
+    }
     if (!quiet) toast('✅ PERFIL GUARDADO DE FORMA SEGURA');
     return state.profile;
   }
@@ -430,10 +481,9 @@
   }
   function backFromEditor() { window.luxHub.setScreen(state.editorBack); }
 
-  function closeLogin() { if ($('lux-login-modal')) $('lux-login-modal').hidden = true; }
   function openLogin(kind = 'member') {
     const modal = $('lux-login-modal'); if (!modal) return;
-    modal.innerHTML = `<div class="lux-login-box"><button class="lux-login-close" type="button" onclick="window.luxAccess.closeLogin()">×</button><span class="hub-kicker">${kind === 'leader' ? 'ACCESO DEL EQUIPO' : 'CUENTA DEL CLAN'}</span><h2>Entrar de forma segura</h2><p>Tu sesión queda guardada en este teléfono. Los permisos se validan en el servidor.</p><label>CORREO<input id="lux-auth-email" type="email" autocomplete="email" placeholder="tu@correo.com"/></label><label>CONTRASEÑA<input id="lux-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="Mínimo 8 caracteres"/></label><div id="lux-auth-name-wrap" hidden><label>NOMBRE DEL CLAN<input id="lux-auth-name" maxlength="24" autocomplete="nickname" placeholder="Tu nombre de jugador"/></label></div><button id="lux-auth-submit" class="lux-login-primary" type="button" onclick="window.luxSupabase.authSubmit()">ENTRAR</button><button class="lux-auth-switch" type="button" onclick="window.luxSupabase.toggleSignup()">CREAR CUENTA</button><button class="lux-auth-resend" type="button" onclick="window.luxSupabase.resendConfirmation()">REENVIAR CONFIRMACIÓN</button><small id="lux-auth-help">No se usa ninguna clave compartida de líder.</small></div>`;
+    modal.innerHTML = `<div class="lux-login-box"><button class="lux-login-close" type="button" onclick="window.luxAccess.closeLogin()">×</button><span class="hub-kicker">${kind === 'leader' ? 'ACCESO DEL EQUIPO' : 'CUENTA DEL CLAN'}</span><h2>Entrar de forma segura</h2><p>Tu sesión queda guardada en este teléfono. Los permisos se validan en el servidor.</p><button class="lux-google-btn" type="button" onclick="window.luxSupabase.loginWithGoogle()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l-.02.12 2.67 2.07.18.02c1.7-1.57 2.69-3.88 2.69-6.63z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.83-2.21c-.76.53-1.78.9-3.13.9-2.38 0-4.41-1.57-5.13-3.72l-.12.01-2.61 2.02-.04.11C2.58 15.93 5.56 18 9 18z"/><path fill="#FBBC05" d="M3.87 10.79c-.19-.58-.3-1.2-.3-1.79s.11-1.21.3-1.79l-.01-.12-2.62-2.03-.09.04C.42 6.55 0 7.72 0 9s.42 2.45 1.15 3.91l2.72-2.12z"/><path fill="#EA4335" d="M9 3.58c1.69 0 2.83.73 3.48 1.34l2.54-2.48C13.45.97 11.43 0 9 0 5.56 0 2.58 2.07 1.15 5.09l2.72 2.12C4.59 5.06 6.62 3.58 9 3.58z"/></svg><span>CONTINUAR CON GOOGLE</span></button><div class="lux-auth-divider"><span>O CON CORREO Y CONTRASEÑA</span></div><label>CORREO<input id="lux-auth-email" type="email" autocomplete="email" placeholder="tu@correo.com"/></label><label>CONTRASEÑA<input id="lux-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="Mínimo 8 caracteres"/></label><div id="lux-auth-name-wrap" hidden><label>NOMBRE DEL CLAN<input id="lux-auth-name" maxlength="24" autocomplete="nickname" placeholder="Tu nombre de jugador"/></label></div><button id="lux-auth-submit" class="lux-login-primary" type="button" onclick="window.luxSupabase.authSubmit()">ENTRAR</button><button class="lux-auth-switch" type="button" onclick="window.luxSupabase.toggleSignup()">CREAR CUENTA</button><button class="lux-auth-resend" type="button" onclick="window.luxSupabase.resendConfirmation()">REENVIAR CONFIRMACIÓN</button><small id="lux-auth-help">No se usa ninguna clave compartida de líder.</small></div>`;
     modal.hidden = false; setTimeout(() => $('lux-auth-email')?.focus(), 20);
   }
   function toggleSignup() {
@@ -453,9 +503,6 @@
       const data = creating
         ? await request('/auth/v1/signup', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password, data:{ display_name }, options:{ emailRedirectTo:emailRedirectUrl() } }) }, false)
         : await request('/auth/v1/token?grant_type=password', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password }) }, false);
-      // La API REST de Auth devuelve los datos de sesión directamente al
-      // iniciar sesión, mientras que algunas respuestas de registro los
-      // agrupan dentro de `session`. Aceptamos ambos formatos.
       const session = data?.session || (data?.access_token ? {
         access_token:data.access_token,
         refresh_token:data.refresh_token,
@@ -497,7 +544,7 @@
   }
   function installStyles() {
     const style = document.createElement('style');
-    style.textContent = `.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
+    style.textContent = `.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px;margin-top:12px;border:1px solid #ffffff35;border-radius:9px;background:#ffffff;color:#1a1a1a;font:700 1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.2px;cursor:pointer;box-shadow:0 4px 14px #00000040;transition:transform .15s,background-color .15s}.lux-google-btn:hover{background:#f0f0f0;transform:translateY(-1px)}.lux-google-btn svg{flex-shrink:0}.lux-auth-divider{display:flex;align-items:center;text-align:center;margin:14px 0 10px;color:#8a838e;font:600 .62rem 'Segoe UI',sans-serif;letter-spacing:1px}.lux-auth-divider::before,.lux-auth-divider::after{content:'';flex:1;border-bottom:1px solid #ffffff1a}.lux-auth-divider span{padding:0 9px}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
     document.head.appendChild(style);
   }
   function install() {
@@ -511,7 +558,7 @@
     document.querySelector('.hub-choice.leader')?.setAttribute('onclick', 'window.luxAccess.loginLeader()');
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
-    window.luxSupabase = { authSubmit, resendConfirmation, toggleSignup, logout, reviewVictory, downloadAvatar, openMember, openLeader, renderPublic, renderAdmin };
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, downloadAvatar, openMember, openLeader, renderPublic, renderAdmin };
     hydrateAccount().then(async user => { await renderPublic(); if (user) { if (state.isStaff) await renderAdmin(); else await renderMember(); } }).catch(() => renderPublic());
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
