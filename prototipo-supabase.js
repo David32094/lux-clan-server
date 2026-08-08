@@ -12,6 +12,15 @@
   const toast = message => window.showToast?.(message);
   const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, profile:null, pendingAvatar:null, directory:new Map(), editorBack:'member' };
 
+  // Preservar hash de OAuth en sessionStorage para inmunitad total contra escrituras de location.hash por otros scripts
+  let rawHash = window.location.hash ? window.location.hash.substring(1) : '';
+  if (rawHash.includes('access_token')) {
+    try { sessionStorage.setItem('lux_oauth_hash', rawHash); } catch (_) {}
+  } else {
+    try { rawHash = sessionStorage.getItem('lux_oauth_hash') || rawHash; } catch (_) {}
+  }
+  const initialOAuthHash = rawHash;
+
   // Exponer loginWithGoogle ANTES del guard de config para que siempre sea callable
   window.luxGoogleLogin = function() {
     const cfg = window.LUX_SUPABASE_CONFIG;
@@ -136,7 +145,7 @@
         }
         return false;
       }
-      const hash = window.location.hash ? window.location.hash.substring(1) : '';
+      const hash = (initialOAuthHash && initialOAuthHash.includes('access_token')) ? initialOAuthHash : (window.location.hash ? window.location.hash.substring(1) : '');
       if (!hash) return false;
       const params = new URLSearchParams(hash);
       const hashError = params.get('error') || params.get('error_description');
@@ -161,6 +170,7 @@
           token_type: token_type || 'bearer'
         };
         writeSession(session);
+        try { sessionStorage.removeItem('lux_oauth_hash'); } catch (_) {}
         if (window.history && window.history.replaceState) {
           window.history.replaceState(null, '', window.location.pathname);
         }
