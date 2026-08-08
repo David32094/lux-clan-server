@@ -50,11 +50,11 @@
       <button class="lux-login-close" type="button" onclick="window.luxAccess.closeLogin()">×</button>
       <span class="hub-kicker">CUENTA DEL CLAN</span>
       <h2>Registrarse es gratis</h2>
-      <p>Usa tu cuenta de Google para entrar. Sin correo ni contraseña.</p>
+      <p>Usa tu cuenta de Google para entrar. Sin contraseñas que recordar.</p>
       <button class="lux-google-btn lux-google-btn--big" type="button" id="lux-google-fallback-btn" onclick="window.luxGoogleLogin()">
         ${googleSvg}<span>CONTINUAR CON GOOGLE</span>
       </button>
-      <p class="lux-auth-note">Al continuar aceptas que tu perfil de Google se usará para identificarte en el clan.</p>
+      <p class="lux-auth-note"><strong>¿YA TENÍAS PERFIL?</strong> Elige la misma dirección de Gmail que usabas antes y conservarás tu ficha, fotos y estadísticas.</p>
     </div>`;
     modal.hidden=false;
     setTimeout(()=>document.getElementById('lux-google-fallback-btn')?.focus(),20);
