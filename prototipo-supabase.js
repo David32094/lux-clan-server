@@ -340,15 +340,13 @@
     let rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}&select=*`).catch(() => []);
     if (!rows?.[0]) {
       const defaultName = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || 'Integrante';
-      const avatarUrl = state.user.user_metadata?.avatar_url || state.user.user_metadata?.picture || null;
       try {
         await request('/rest/v1/profiles', {
           method:'POST',
           headers:{ 'Content-Type':'application/json', Prefer:'return=representation' },
           body:JSON.stringify({
             id: state.user.id,
-            display_name: defaultName,
-            avatar_url: avatarUrl
+            display_name: defaultName
           })
         });
         rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}&select=*`).catch(() => []);
@@ -427,7 +425,7 @@
     if ($('hub-age')) $('hub-age').value = profile?.age || '';
     if ($('hub-country')) $('hub-country').value = profile?.country_code || '';
     if ($('hub-role')) $('hub-role').value = roleLabel();
-    const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : (profile?.avatar_url || '');
+    const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
     if ($('hub-avatar')) { $('hub-avatar').src = avatar; $('hub-avatar').hidden = !avatar; }
     if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = Boolean(avatar);
     if ($('hub-1v1')) $('hub-1v1').textContent = stats['1v1'];
@@ -466,7 +464,7 @@
     }
     await Promise.all([renderMember(), renderPublic()]);
     if (state.isStaff) await renderAdmin();
-    const updatedAvatarUrl = state.profile?.avatar_path ? publicUrl('lux-avatars', state.profile.avatar_path) : (state.profile?.avatar_url || '');
+    const updatedAvatarUrl = state.profile?.avatar_path ? publicUrl('lux-avatars', state.profile.avatar_path) : '';
     if (updatedAvatarUrl && window.readPlayerFileInteg) {
       try {
         const blob = await fetch(updatedAvatarUrl).then(response => response.blob());
@@ -635,7 +633,7 @@
     const sessionLabel = $('lux-leader-session');
     if (sessionLabel) sessionLabel.textContent = state.isOwner ? 'Control privado · cuenta verificada' : `${roleLabel()} · cuenta verificada`;
     const [profiles, victories, ranking, roles] = await Promise.all([
-      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,avatar_url,banner_path,is_public,created_at&order=display_name.asc'),
+      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,banner_path,is_public,created_at&order=display_name.asc'),
       request('/rest/v1/victories?select=id,player_id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc'),
       rpc('get_public_ranking', {}, false),
       rpc('staff_list_member_roles')
@@ -835,7 +833,7 @@
       if ($('t-edad-integ')) $('t-edad-integ').value = profile?.age || '';
       if ($('t-pais-integ')) $('t-pais-integ').value = profile?.country_code || '';
       window.onFlagInteg?.(); window.renderInteg?.();
-      const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : (profile?.avatar_url || '');
+      const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
       if (avatar && window.readPlayerFileInteg) { try { const blob = await fetch(avatar).then(response => response.blob()); window.readPlayerFileInteg(new File([blob], 'perfil.jpg', { type:'image/jpeg' })); } catch (_) {} }
     }
     window.luxLeaderDemo?.setMode(leader ? 'leader' : 'member');
