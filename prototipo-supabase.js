@@ -221,7 +221,23 @@
   }
   async function loadProfile() {
     if (!state.user?.id) return null;
-    const rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}&select=*`);
+    let rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}&select=*`).catch(() => []);
+    if (!rows?.[0]) {
+      const defaultName = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || 'Integrante';
+      const avatarUrl = state.user.user_metadata?.avatar_url || state.user.user_metadata?.picture || null;
+      try {
+        await request('/rest/v1/profiles', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', Prefer:'return=representation' },
+          body:JSON.stringify({
+            id: state.user.id,
+            display_name: defaultName,
+            avatar_url: avatarUrl
+          })
+        });
+        rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(state.user.id)}&select=*`).catch(() => []);
+      } catch (_) {}
+    }
     state.profile = rows?.[0] || null;
     return state.profile;
   }
@@ -601,7 +617,19 @@
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
     window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, downloadAvatar, openMember, openLeader, renderPublic, renderAdmin };
-    hydrateAccount().then(async user => { await renderPublic(); if (user) { if (state.isStaff) await renderAdmin(); else await renderMember(); } }).catch(() => renderPublic());
+    hydrateAccount().then(async user => {
+      await renderPublic();
+      if (user) {
+        if (state.isStaff) {
+          window.luxHub.setScreen('admin');
+          await renderAdmin();
+        } else {
+          window.luxHub.setScreen('member');
+          await renderMember();
+        }
+        toast(`✅ SESIÓN ABIERTA CON GOOGLE: ${(user.email || 'INTEGRANTE').toUpperCase()}`);
+      }
+    }).catch(() => renderPublic());
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
