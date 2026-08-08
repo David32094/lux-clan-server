@@ -205,7 +205,7 @@
     ensurePublicPlates();
     const target = $('lux-public-plates-ranking');
     if (!target) return;
-    target.innerHTML = rows.length ? rows.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b><span class="lux-public-plate-avatar lux-access-initial">${initial(row.display_name)}</span><span>${esc(row.display_name)}</span><em>${row.plate_count} placas</em></p>`).join('') : '<p class="lux-plates-public-empty">Aún no hay placas registradas.</p>';
+    target.innerHTML = rows.length ? rows.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b>${avatarHtml(row, 'lux-public-plate-avatar')}<span>${esc(row.display_name)}</span><em>${row.plate_count} placas</em></p>`).join('') : '<p class="lux-plates-public-empty">Aún no hay placas registradas.</p>';
   }
 
   async function renderMember() {
@@ -368,7 +368,7 @@
     const target = $('lux-plates-ranking');
     if (!target) return;
     const rows = await rpc('get_public_plate_ranking', {}, false);
-    target.innerHTML = rows.length ? rows.map((row, index) => `<article class="lux-plate-row"><i>#${index + 1}</i><span class="lux-plate-avatar lux-plate-initial">${initial(row.display_name)}</span><div><strong>${esc(row.display_name)}</strong><small>${row.plate_count} placas</small></div><button type="button" onclick="window.luxPlates.openGallery('${esc(row.player_id)}')">VER</button></article>`).join('') : '<p class="hub-empty">Aún no hay placas registradas.</p>';
+    target.innerHTML = rows.length ? rows.map((row, index) => `<article class="lux-plate-row"><i>#${index + 1}</i>${avatarHtml(row, 'lux-plate-avatar')}<div><strong>${esc(row.display_name)}</strong><small>${row.plate_count} placas</small></div><button type="button" onclick="window.luxPlates.openGallery('${esc(row.player_id)}')">VER</button></article>`).join('') : '<p class="hub-empty">Aún no hay placas registradas.</p>';
   }
   async function showPlates() {
     if (!state.isLeader) { toast('⛔ SOLO PROPIETARIA O LÍDERES GESTIONAN PLACAS'); return; }
