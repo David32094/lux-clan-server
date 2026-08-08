@@ -405,7 +405,8 @@
       if (title) title.innerHTML = 'Clasificación<br/><em>del clan.</em>';
       if (copy) copy.textContent = 'Consulta los jugadores, sus estadísticas y las capturas que ya fueron aprobadas.';
     }
-    $('lux-public-podium')?.closest('.lux-public-card')?.remove();
+    const publicPodiumCard = $('lux-public-podium')?.closest('.lux-public-card');
+    if (publicPodiumCard) publicPodiumCard.hidden = true;
     const publicRankingCard = $('lux-public-ranking')?.closest('.lux-public-card');
     if (publicRankingCard) {
       const title = publicRankingCard.querySelector('h3');

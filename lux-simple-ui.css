@@ -17,7 +17,8 @@
 }
 
 #hub-member .hub-page > *[hidden],
-#hub-admin .hub-page > *[hidden] {
+#hub-admin .hub-page > *[hidden],
+#lux-public-screen .hub-page > *[hidden] {
   display: none !important;
 }
 
@@ -93,8 +94,16 @@
 
 .lux-member-home > header,
 .lux-admin-menu > header {
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
   max-width: 720px;
   margin-bottom: 20px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
 }
 
 .lux-member-home h2,
@@ -241,11 +250,18 @@
 }
 
 .lux-section-heading {
+  position: static !important;
   display: flex;
+  width: auto !important;
+  height: auto !important;
   align-items: end;
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 18px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
 }
 
 .lux-section-heading > button {
