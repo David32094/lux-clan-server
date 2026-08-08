@@ -35,10 +35,10 @@
   function renderLeaderSession(){const target=$('lux-leader-session'),data=session();if(target)target.textContent=data?.type==='leader'?`${data.name} · ${data.role}`:'Sesión local';}
 
   function loginWithGoogle(){
-    if(window.luxSupabase?.loginWithGoogle){
-      window.luxSupabase.loginWithGoogle();
+    if(typeof window.luxGoogleLogin === 'function'){
+      window.luxGoogleLogin();
     } else {
-      toast('⚠️ Para iniciar sesión con Google, conecta Supabase en el repositorio de GitHub.');
+      window.showToast?.('⚠️ Cargando... intenta en un momento.');
     }
   }
 
@@ -51,7 +51,7 @@
       <span class="hub-kicker">CUENTA DEL CLAN</span>
       <h2>Registrarse es gratis</h2>
       <p>Usa tu cuenta de Google para entrar. Sin correo ni contraseña.</p>
-      <button class="lux-google-btn lux-google-btn--big" type="button" id="lux-google-fallback-btn" onclick="window.luxAccess.loginWithGoogle()">
+      <button class="lux-google-btn lux-google-btn--big" type="button" id="lux-google-fallback-btn" onclick="window.luxGoogleLogin()">
         ${googleSvg}<span>CONTINUAR CON GOOGLE</span>
       </button>
       <p class="lux-auth-note">Al continuar aceptas que tu perfil de Google se usará para identificarte en el clan.</p>

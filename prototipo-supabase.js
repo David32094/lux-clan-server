@@ -12,6 +12,19 @@
   const toast = message => window.showToast?.(message);
   const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, profile:null, pendingAvatar:null, directory:new Map(), editorBack:'member' };
 
+  // Exponer loginWithGoogle ANTES del guard de config para que siempre sea callable
+  window.luxGoogleLogin = function() {
+    const cfg = window.LUX_SUPABASE_CONFIG;
+    if (!cfg?.url || !cfg?.publishableKey) {
+      window.showToast?.('⚠️ Supabase no está configurado en este entorno. Contacta al admin del clan.');
+      console.warn('LUX CLAN: LUX_SUPABASE_CONFIG no está definido. Configura SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY como variables en el repositorio de GitHub.');
+      return;
+    }
+    const base = String(cfg.url).replace(/\/$/, '');
+    const redirectUrl = window.location.origin + window.location.pathname;
+    window.location.href = `${base}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+  };
+
   if (!config?.url || !config?.publishableKey) {
     console.info('LUX CLAN: configuracion de produccion pendiente. Se mantiene la demo local.');
     return;
@@ -489,7 +502,7 @@
       <span class="hub-kicker">${kind === 'leader' ? 'ACCESO DEL EQUIPO' : 'CUENTA DEL CLAN'}</span>
       <h2>Registrarse es gratis</h2>
       <p>Usa tu cuenta de Google para entrar al clan. No necesitas recordar ninguna contraseña.</p>
-      <button class="lux-google-btn lux-google-btn--big" type="button" id="lux-google-main-btn" onclick="window.luxSupabase.loginWithGoogle()">
+      <button class="lux-google-btn lux-google-btn--big" type="button" id="lux-google-main-btn" onclick="window.luxGoogleLogin()">
         ${googleSvg}
         <span>CONTINUAR CON GOOGLE</span>
       </button>

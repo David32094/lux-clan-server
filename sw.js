@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'lux-clan-editor-offline-v14';
+﻿const CACHE_NAME = 'lux-clan-editor-offline-v15';
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
@@ -77,4 +77,5 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
 
