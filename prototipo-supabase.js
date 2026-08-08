@@ -146,16 +146,15 @@
         return false;
       }
       
-      // Check hash from URL first, then fallback to sessionStorage backup
-      let hash = window.location.hash ? window.location.hash.substring(1) : '';
-      
-      // If hash is empty or doesn't contain access_token, check sessionStorage backup
+      // Algunos scripts de la interfaz cambian el hash a #integrantes antes
+      // de que Auth termine de arrancar. Usamos primero la copia capturada al
+      // inicio del documento y luego ambos respaldos de sessionStorage.
+      let hash = initialOAuthHash || (window.location.hash ? window.location.hash.substring(1) : '');
       if (!hash || !hash.includes('access_token')) {
         try {
-          const backup = sessionStorage.getItem('lux_oauth_hash_backup');
+          const backup = sessionStorage.getItem('lux_oauth_hash') || sessionStorage.getItem('lux_oauth_hash_backup');
           if (backup && backup.includes('access_token')) {
             hash = backup.substring(backup.startsWith('#') ? 1 : 0);
-            console.log('[OAuth] Retrieved hash from sessionStorage backup');
           }
         } catch (_) {}
       }
@@ -195,7 +194,6 @@
         if (window.history && window.history.replaceState) {
           window.history.replaceState(null, '', window.location.pathname);
         }
-        console.log('[OAuth] Session saved successfully to localStorage');
         return true;
       }
     } catch (error) {
@@ -560,6 +558,11 @@
     window.luxHub.setScreen('editor');
   }
   function backFromEditor() { window.luxHub.setScreen(state.editorBack); }
+
+  function closeLogin() {
+    const modal = $('lux-login-modal');
+    if (modal) modal.hidden = true;
+  }
 
   function openLogin(kind = 'member') {
     const modal = $('lux-login-modal'); if (!modal) return;
