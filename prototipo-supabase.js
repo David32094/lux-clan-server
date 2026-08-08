@@ -448,8 +448,19 @@
       const data = creating
         ? await request('/auth/v1/signup', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password, data:{ display_name }, options:{ emailRedirectTo:emailRedirectUrl() } }) }, false)
         : await request('/auth/v1/token?grant_type=password', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password }) }, false);
-      if (!data.session) { if ($('lux-auth-help')) $('lux-auth-help').textContent = 'Revisa tu correo. Si el enlace falla, pulsa “Reenviar confirmación”.'; toast('✉️ REVISA TU CORREO Y CONFIRMA LA CUENTA'); return; }
-      writeSession(data.session); state.user = data.user || null;
+      // La API REST de Auth devuelve los datos de sesión directamente al
+      // iniciar sesión, mientras que algunas respuestas de registro los
+      // agrupan dentro de `session`. Aceptamos ambos formatos.
+      const session = data?.session || (data?.access_token ? {
+        access_token:data.access_token,
+        refresh_token:data.refresh_token,
+        expires_at:data.expires_at,
+        expires_in:data.expires_in,
+        token_type:data.token_type,
+        user:data.user
+      } : null);
+      if (!session) { if ($('lux-auth-help')) $('lux-auth-help').textContent = 'Revisa tu correo. Si el enlace falla, pulsa “Reenviar confirmación”.'; toast('✉️ REVISA TU CORREO Y CONFIRMA LA CUENTA'); return; }
+      writeSession(session); state.user = data.user || session.user || null;
       await hydrateAccount(); closeLogin();
       if (creating && display_name) { if ($('hub-name')) $('hub-name').value = display_name; await saveProfile(true); }
       if (state.isStaff) { window.luxHub.setScreen('admin'); await renderAdmin(); }
