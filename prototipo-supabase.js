@@ -36,7 +36,7 @@
   function errorMessage(error, fallback = 'No se pudo completar la operación') {
     return error?.message || error?.msg || error?.error_description || fallback;
   }
-  async function request(path, options = {}, auth = true) {
+  async function request(path, options = {}, auth = true, retried = false) {
     const response = await fetch(`${base}${path}`, {
       ...options,
       headers: headers(auth, options.headers || {})
@@ -44,6 +44,10 @@
     const text = await response.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
+    if (!response.ok && response.status === 401 && auth && !retried && state.session?.refresh_token) {
+      await refreshSession();
+      return request(path, options, auth, true);
+    }
     if (!response.ok) {
       const error = new Error(errorMessage(data, `Error ${response.status}`));
       error.status = response.status;
