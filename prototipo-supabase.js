@@ -22,6 +22,7 @@
     try { rawHash = sessionStorage.getItem('lux_oauth_hash') || rawHash; } catch (_) {}
   }
   const initialOAuthHash = rawHash;
+  const arrivedFromOAuth = initialOAuthHash.includes('access_token') || new URLSearchParams(window.location.search).has('code');
 
   // Exponer loginWithGoogle ANTES del guard de config para que siempre sea callable
   window.luxGoogleLogin = function() {
@@ -372,12 +373,12 @@
       const accountActions = state.user
         ? `<button type="button" onclick="window.luxSupabase.openMember('home')">MI CUENTA</button>${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
         : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR</button>';
-      publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxAccess.openPublic()">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`;
+      publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxHub.setScreen('home')">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`;
     }
 
     const memberNav = document.querySelector('#hub-member .hub-nav');
     if (memberNav) {
-      memberNav.innerHTML = `<button type="button" onclick="window.luxAccess.openPublic()">← CLASIFICACIÓN</button><strong>MI CUENTA<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions">${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      memberNav.innerHTML = `<button type="button" onclick="window.luxHub.setScreen('home')">← INICIO</button><strong>MI CUENTA<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions">${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
     }
 
     const adminNav = document.querySelector('#hub-admin .hub-nav');
@@ -1102,7 +1103,7 @@
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
-    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); renderAccountState(); ensureOwnerPanel(); window.luxAccess.openPublic(); toast('SESIÓN CERRADA');
+    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
   }
   async function openMember(section = 'home') {
     if (!state.user) { openLogin('member'); return; }
@@ -1260,13 +1261,16 @@
     window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview };
     hydrateAccount().then(async user => {
       await renderPublic();
-      if (user) {
+      if (user && arrivedFromOAuth) {
         await openMember('home');
       } else {
-        window.luxAccess.openPublic();
+        window.luxHub.setScreen('home');
       }
       renderNavigation();
-    }).catch(() => renderPublic());
+    }).catch(async () => {
+      await renderPublic();
+      window.luxHub.setScreen('home');
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
