@@ -1,0 +1,51 @@
+name: Validar y publicar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v6
+      - name: Validar scripts del hub
+        run: |
+          node --check prototipo-lider.js
+          node --check prototipo-clan-hub.js
+          node --check prototipo-accesos.js
+          node --check prototipo-placas.js
+      - name: Evitar claves privadas en el sitio
+        run: |
+          test ! -f supabase-client-config.js
+          test ! -f .env
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v6
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+      - name: Preparar sitio estático
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

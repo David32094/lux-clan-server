@@ -1,0 +1,108 @@
+{
+  "INTEGRANTES LUX UP": {
+    "savedAt": "7/8/2026, 16:21:17",
+    "elements": [
+      {
+        "id": "nombre",
+        "x": 568,
+        "y": 1278,
+        "size": 67,
+        "font": "Raleway",
+        "color": "#d60201",
+        "bold": true,
+        "italic": true,
+        "upper": true
+      },
+      {
+        "id": "edad",
+        "x": 562,
+        "y": 1391,
+        "size": 71,
+        "font": "Bebas Neue",
+        "color": "#d60000",
+        "bold": false,
+        "italic": false,
+        "upper": false
+      },
+      {
+        "id": "pais",
+        "x": 577,
+        "y": 1496,
+        "size": 62,
+        "font": "Raleway",
+        "color": "#d60402",
+        "bold": true,
+        "italic": true,
+        "upper": false
+      }
+    ],
+    "flag": {
+      "x": 389,
+      "y": 1495,
+      "w": 90,
+      "h": 58,
+      "code": "br"
+    },
+    "circle": {
+      "cx": 453,
+      "cy": 891,
+      "r": 275,
+      "photoOffY": 0.44,
+      "photoScale": 1
+    },
+    "inputs": {
+      "nombre": "david",
+      "edad": "19",
+      "pais": "br"
+    }
+  },
+  "INTEGRANTES": {
+    "savedAt": "31/7/2026, 6:44:22",
+    "elements": [
+      {
+        "id": "nombre",
+        "x": 582,
+        "y": 1282,
+        "size": 62,
+        "font": "Raleway",
+        "color": "#ade102",
+        "bold": true,
+        "italic": true,
+        "upper": true
+      },
+      {
+        "id": "edad",
+        "x": 580,
+        "y": 1392,
+        "size": 89,
+        "font": "Bebas Neue",
+        "color": "#b6e703",
+        "bold": false,
+        "italic": false
+      },
+      {
+        "id": "pais",
+        "x": 589,
+        "y": 1497,
+        "size": 52,
+        "font": "Raleway",
+        "color": "#afe402",
+        "bold": true,
+        "italic": true
+      }
+    ],
+    "flag": {
+      "x": 360,
+      "y": 1467,
+      "w": 84,
+      "h": 56
+    },
+    "circle": {
+      "cx": 456,
+      "cy": 894,
+      "r": 271,
+      "photoOffY": 0.4714,
+      "photoScale": 1.2
+    }
+  }
+}

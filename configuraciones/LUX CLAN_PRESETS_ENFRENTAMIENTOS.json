@@ -1,0 +1,142 @@
+{
+  "ENFRENTAMIENTOS LUX UP": {
+    "savedAt": "7/8/2026, 8:05:08",
+    "elements": [
+      {
+        "id": "clanTop",
+        "x": 715,
+        "y": 620,
+        "size": 27
+      },
+      {
+        "id": "clanBottom",
+        "x": 715,
+        "y": 620,
+        "size": 27
+      },
+      {
+        "id": "scoreFx",
+        "x": 203,
+        "y": 907,
+        "size": 105
+      },
+      {
+        "id": "scoreRival",
+        "x": 721,
+        "y": 909,
+        "size": 105
+      },
+      {
+        "id": "fecha",
+        "x": 572,
+        "y": 1628,
+        "size": 49
+      }
+    ],
+    "circle": {
+      "cx": 715,
+      "cy": 620,
+      "r": 127,
+      "photoOffY": 0.5,
+      "photoScale": 0.8499999999999999
+    },
+    "resultBox": {
+      "x": 0,
+      "y": 1006,
+      "w": 941,
+      "h": 601,
+      "imgOffX": 0,
+      "imgOffY": 0,
+      "imgScale": 1.0,
+      "locked": true
+    },
+    "inputs": {
+      "clanTop": "NOMBRE DEL CLAN",
+      "clanBottom": "NOMBRE DEL CLAN",
+      "distClanTop": "17",
+      "distClanBottom": "33",
+      "scoreFx": "7",
+      "scoreRival": "2",
+      "fecha": "30 / 07 / 2026",
+      "fnClan": "Raleway",
+      "clClan": "#b41c18",
+      "szClan": "27",
+      "fnScore": "Bebas Neue",
+      "clScore": "#b11817",
+      "szScore": "120",
+      "fnFecha": "Bebas Neue",
+      "clFecha": "#c91f1b",
+      "szFecha": "49"
+    }
+  },
+  "ENFRENTAMIENTO": {
+    "savedAt": "31/7/2026, 9:50:29",
+    "elements": [
+      {
+        "id": "clanTop",
+        "x": 818,
+        "y": 606,
+        "size": 26
+      },
+      {
+        "id": "clanBottom",
+        "x": 818,
+        "y": 606,
+        "size": 26
+      },
+      {
+        "id": "scoreFx",
+        "x": 232,
+        "y": 918,
+        "size": 120
+      },
+      {
+        "id": "scoreRival",
+        "x": 834,
+        "y": 926,
+        "size": 120
+      },
+      {
+        "id": "fecha",
+        "x": 661,
+        "y": 1769,
+        "size": 65
+      }
+    ],
+    "circle": {
+      "cx": 818,
+      "cy": 606,
+      "r": 153,
+      "photoOffY": 0.5,
+      "photoScale": 1
+    },
+    "resultBox": {
+      "x": 0,
+      "y": 1006,
+      "w": 941,
+      "h": 601,
+      "imgOffX": 0,
+      "imgOffY": 0,
+      "imgScale": 1.0,
+      "locked": true
+    },
+    "inputs": {
+      "clanTop": "NOMBRE DEL CLAN",
+      "clanBottom": "NOMBRE DEL CLAN",
+      "distClanTop": "21",
+      "distClanBottom": "21",
+      "scoreFx": "7",
+      "scoreRival": "2",
+      "fecha": "30 / 07 / 2026",
+      "fnClan": "Raleway",
+      "clClan": "#7fff00",
+      "szClan": "26",
+      "fnScore": "Bebas Neue",
+      "clScore": "#7fff00",
+      "szScore": "120",
+      "fnFecha": "Bebas Neue",
+      "clFecha": "#75a500",
+      "szFecha": "65"
+    }
+  }
+}

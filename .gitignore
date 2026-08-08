@@ -1,0 +1,12 @@
+# Credenciales y configuración privada: nunca se suben a GitHub.
+.env
+.env.*
+!.env.example
+supabase/.temp/
+
+# Archivos locales y generados.
+node_modules/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
