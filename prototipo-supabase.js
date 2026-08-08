@@ -126,9 +126,27 @@
 
   function parseOAuthCallback() {
     try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryError = searchParams.get('error') || searchParams.get('error_description');
+      if (queryError) {
+        const desc = searchParams.get('error_description') || queryError;
+        toast(`⚠️ ERROR AL INICIAR SESIÓN: ${desc}`);
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+        return false;
+      }
       const hash = window.location.hash ? window.location.hash.substring(1) : '';
       if (!hash) return false;
       const params = new URLSearchParams(hash);
+      const hashError = params.get('error') || params.get('error_description');
+      if (hashError) {
+        toast(`⚠️ ERROR AL INICIAR SESIÓN: ${params.get('error_description') || hashError}`);
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+        return false;
+      }
       const access_token = params.get('access_token');
       const refresh_token = params.get('refresh_token');
       const expires_in = params.get('expires_in');
@@ -144,8 +162,7 @@
         };
         writeSession(session);
         if (window.history && window.history.replaceState) {
-          const cleanUrl = window.location.pathname + window.location.search;
-          window.history.replaceState(null, '', cleanUrl);
+          window.history.replaceState(null, '', window.location.pathname);
         }
         return true;
       }
