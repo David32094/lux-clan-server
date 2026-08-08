@@ -280,7 +280,12 @@
       toast('🕒 CAPTURA ENVIADA · ESPERA LA REVISIÓN DE UNA LÍDER');
       await renderMember();
     } catch (error) {
-      toast(`⚠️ ${errorMessage(error, 'NO SE PUDO ENVIAR LA CAPTURA').toUpperCase()}`);
+      const message = errorMessage(error, 'NO SE PUDO ENVIAR LA CAPTURA').toUpperCase();
+      if (/CAN_SUBMIT_VICTORY|SCHEMA CACHE|PGRST202/.test(message)) {
+        toast('⚠️ LA VALIDACIÓN SE ESTÁ ACTUALIZANDO. RECARGA E INTENTA DE NUEVO.');
+        return;
+      }
+      toast(`⚠️ ${message}`);
     }
   }
 
