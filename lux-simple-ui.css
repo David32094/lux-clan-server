@@ -92,6 +92,79 @@
   box-shadow: inset 0 -3px 0 var(--lux-red);
 }
 
+.lux-admin-tabs {
+  position: sticky;
+  z-index: 95;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--lux-admin-tab-count, 5), minmax(112px, 1fr));
+  gap: 7px;
+  margin: -22px 0 24px;
+  padding: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--lux-border);
+  border-radius: 16px;
+  background: #0d0c11ee;
+  box-shadow: 0 12px 35px #0008;
+  scrollbar-width: none;
+  backdrop-filter: blur(14px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.lux-admin-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.lux-admin-tabs button {
+  position: relative;
+  min-height: 62px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #aaa4aa;
+  padding: 7px 6px;
+  cursor: pointer;
+}
+
+.lux-admin-tabs button > span {
+  display: block;
+  margin-bottom: 3px;
+  font: 1.08rem 'Segoe UI Emoji', sans-serif;
+}
+
+.lux-admin-tabs button > strong {
+  display: block;
+  font: .92rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .65px;
+}
+
+.lux-admin-tabs button > b {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--lux-red);
+  color: #fff;
+  padding: 0 5px;
+  font: 700 .65rem 'Segoe UI', sans-serif;
+}
+
+.lux-admin-tabs button:hover,
+.lux-admin-tabs button.active {
+  border-color: #ff604b66;
+  background: linear-gradient(145deg, #3b1618, #1b1115);
+  color: #fff;
+}
+
+.lux-admin-tabs button.active {
+  box-shadow: inset 0 -3px 0 var(--lux-red);
+}
+
 .lux-member-home > header,
 .lux-admin-menu > header {
   position: static !important;
@@ -382,6 +455,28 @@
 
   .lux-member-tabs button span {
     font-size: 1rem;
+  }
+
+  .lux-admin-tabs {
+    grid-template-columns: repeat(var(--lux-admin-tab-count, 5), minmax(105px, 1fr));
+    gap: 4px;
+    margin: -19px -2px 20px;
+    padding: 5px;
+    border-radius: 13px;
+  }
+
+  .lux-admin-tabs button {
+    min-height: 56px;
+    padding: 5px 3px;
+  }
+
+  .lux-admin-tabs button > strong {
+    font-size: .76rem;
+    letter-spacing: .3px;
+  }
+
+  .lux-admin-tabs button > span {
+    font-size: .96rem;
   }
 
   .lux-simple-actions,
