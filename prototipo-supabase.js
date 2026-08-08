@@ -87,6 +87,9 @@
   function randomId() {
     return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
+  function emailRedirectUrl() {
+    return `${window.location.origin}${window.location.pathname}`;
+  }
   async function sha256(file) {
     const bytes = await file.arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -425,7 +428,7 @@
   function closeLogin() { if ($('lux-login-modal')) $('lux-login-modal').hidden = true; }
   function openLogin(kind = 'member') {
     const modal = $('lux-login-modal'); if (!modal) return;
-    modal.innerHTML = `<div class="lux-login-box"><button class="lux-login-close" type="button" onclick="window.luxAccess.closeLogin()">×</button><span class="hub-kicker">${kind === 'leader' ? 'ACCESO DEL EQUIPO' : 'CUENTA DEL CLAN'}</span><h2>Entrar de forma segura</h2><p>Tu sesión queda guardada en este teléfono. Los permisos se validan en el servidor.</p><label>CORREO<input id="lux-auth-email" type="email" autocomplete="email" placeholder="tu@correo.com"/></label><label>CONTRASEÑA<input id="lux-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="Mínimo 8 caracteres"/></label><div id="lux-auth-name-wrap" hidden><label>NOMBRE DEL CLAN<input id="lux-auth-name" maxlength="24" autocomplete="nickname" placeholder="Tu nombre de jugador"/></label></div><button id="lux-auth-submit" class="lux-login-primary" type="button" onclick="window.luxSupabase.authSubmit()">ENTRAR</button><button class="lux-auth-switch" type="button" onclick="window.luxSupabase.toggleSignup()">CREAR CUENTA</button><small id="lux-auth-help">No se usa ninguna clave compartida de líder.</small></div>`;
+    modal.innerHTML = `<div class="lux-login-box"><button class="lux-login-close" type="button" onclick="window.luxAccess.closeLogin()">×</button><span class="hub-kicker">${kind === 'leader' ? 'ACCESO DEL EQUIPO' : 'CUENTA DEL CLAN'}</span><h2>Entrar de forma segura</h2><p>Tu sesión queda guardada en este teléfono. Los permisos se validan en el servidor.</p><label>CORREO<input id="lux-auth-email" type="email" autocomplete="email" placeholder="tu@correo.com"/></label><label>CONTRASEÑA<input id="lux-auth-password" type="password" minlength="8" autocomplete="current-password" placeholder="Mínimo 8 caracteres"/></label><div id="lux-auth-name-wrap" hidden><label>NOMBRE DEL CLAN<input id="lux-auth-name" maxlength="24" autocomplete="nickname" placeholder="Tu nombre de jugador"/></label></div><button id="lux-auth-submit" class="lux-login-primary" type="button" onclick="window.luxSupabase.authSubmit()">ENTRAR</button><button class="lux-auth-switch" type="button" onclick="window.luxSupabase.toggleSignup()">CREAR CUENTA</button><button class="lux-auth-resend" type="button" onclick="window.luxSupabase.resendConfirmation()">REENVIAR CONFIRMACIÓN</button><small id="lux-auth-help">No se usa ninguna clave compartida de líder.</small></div>`;
     modal.hidden = false; setTimeout(() => $('lux-auth-email')?.focus(), 20);
   }
   function toggleSignup() {
@@ -443,9 +446,9 @@
     if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || (creating && (!display_name || display_name.length < 2))) { toast('⚠️ REVISA CORREO, CONTRASEÑA Y NOMBRE'); return; }
     try {
       const data = creating
-        ? await request('/auth/v1/signup', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password, data:{ display_name } }) }, false)
+        ? await request('/auth/v1/signup', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password, data:{ display_name }, options:{ emailRedirectTo:emailRedirectUrl() } }) }, false)
         : await request('/auth/v1/token?grant_type=password', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password }) }, false);
-      if (!data.session) { closeLogin(); toast('✉️ REVISA TU CORREO Y CONFIRMA LA CUENTA'); return; }
+      if (!data.session) { if ($('lux-auth-help')) $('lux-auth-help').textContent = 'Revisa tu correo. Si el enlace falla, pulsa “Reenviar confirmación”.'; toast('✉️ REVISA TU CORREO Y CONFIRMA LA CUENTA'); return; }
       writeSession(data.session); state.user = data.user || null;
       await hydrateAccount(); closeLogin();
       if (creating && display_name) { if ($('hub-name')) $('hub-name').value = display_name; await saveProfile(true); }
@@ -453,6 +456,15 @@
       else { window.luxHub.setScreen('member'); await renderMember(); }
       toast('✅ SESIÓN ABIERTA');
     } catch (error) { toast(`⚠️ ${errorMessage(error, 'NO SE PUDO INICIAR SESIÓN').toUpperCase()}`); }
+  }
+  async function resendConfirmation() {
+    const email = $('lux-auth-email')?.value.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { toast('⚠️ ESCRIBE TU CORREO PRIMERO'); return; }
+    try {
+      await request('/auth/v1/resend', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ type:'signup', email, options:{ emailRedirectTo:emailRedirectUrl() } }) }, false);
+      if ($('lux-auth-help')) $('lux-auth-help').textContent = 'Correo reenviado. El enlace volverá a esta página.';
+      toast('✉️ CONFIRMACIÓN REENVIADA');
+    } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
@@ -469,7 +481,7 @@
   }
   function installStyles() {
     const style = document.createElement('style');
-    style.textContent = `.lux-auth-switch{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
+    style.textContent = `.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
     document.head.appendChild(style);
   }
   function install() {
@@ -483,7 +495,7 @@
     document.querySelector('.hub-choice.leader')?.setAttribute('onclick', 'window.luxAccess.loginLeader()');
     document.querySelectorAll('.hub-profile-title .hub-kicker').forEach(node => { node.textContent = 'PERFIL SEGURO'; });
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
-    window.luxSupabase = { authSubmit, toggleSignup, logout, reviewVictory, downloadAvatar, openMember, openLeader, renderPublic, renderAdmin };
+    window.luxSupabase = { authSubmit, resendConfirmation, toggleSignup, logout, reviewVictory, downloadAvatar, openMember, openLeader, renderPublic, renderAdmin };
     hydrateAccount().then(async user => { await renderPublic(); if (user) { if (state.isStaff) await renderAdmin(); else await renderMember(); } }).catch(() => renderPublic());
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
