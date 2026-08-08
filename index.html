@@ -3,10 +3,38 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LUX CLAN · Editor</title>
+  <meta name="theme-color" content="#09090d"/>
+  <meta name="description" content="Únete a LUX CLAN SERVER, crea tu perfil y participa en la clasificación oficial del clan."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:locale" content="es_ES"/>
+  <meta property="og:site_name" content="LUX CLAN SERVER"/>
+  <meta property="og:title" content="LUX CLAN SERVER · ÚNETE AL CLAN"/>
+  <meta property="og:description" content="Crea tu perfil, sube tus victorias y consulta la clasificación oficial de LUX CLAN."/>
+  <meta property="og:url" content="https://david32094.github.io/lux-clan-server/"/>
+  <meta property="og:image" content="https://david32094.github.io/lux-clan-server/ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png"/>
+  <meta property="og:image:secure_url" content="https://david32094.github.io/lux-clan-server/ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1254"/>
+  <meta property="og:image:height" content="1254"/>
+  <meta property="og:image:alt" content="Logo oficial rojo de LUX CLAN"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="LUX CLAN SERVER · ÚNETE AL CLAN"/>
+  <meta name="twitter:description" content="Crea tu perfil, sube tus victorias y consulta la clasificación oficial de LUX CLAN."/>
+  <meta name="twitter:image" content="https://david32094.github.io/lux-clan-server/ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png"/>
+  <link rel="canonical" href="https://david32094.github.io/lux-clan-server/"/>
+  <link rel="icon" href="./ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png"/>
+  <title>LUX CLAN SERVER · Únete al clan</title>
+  <style>
+    *{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 20%,#4b0a0a,#09090d 48%);color:#fff;font-family:Arial,sans-serif;text-align:center}main{width:min(480px,100%);padding:28px;border:1px solid #ff3b2466;border-radius:24px;background:#0d0c11e8;box-shadow:0 24px 80px #000}img{width:112px;height:112px;border-radius:24px;object-fit:cover;box-shadow:0 0 32px #ff220077}h1{margin:18px 0 8px;font-size:2rem;letter-spacing:1px}p{margin:0 0 20px;color:#bcb6bc;line-height:1.55}a{display:block;padding:14px;border-radius:12px;background:linear-gradient(135deg,#ff3b24,#a90000);color:#fff;font-weight:800;text-decoration:none}
+  </style>
 </head>
 <body>
-  <p>Abriendo el editor… <a href="./LUX_CLAN_EDITOR_BY.DAVID.XIT.html">Abrir ahora</a></p>
+  <main>
+    <img src="./ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png" alt="LUX CLAN"/>
+    <h1>LUX CLAN SERVER</h1>
+    <p>Abriendo el centro oficial del clan…</p>
+    <a href="./LUX_CLAN_EDITOR_BY.DAVID.XIT.html">ENTRAR AHORA</a>
+  </main>
   <script>
     (async () => {
       const editor = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
@@ -25,7 +53,7 @@
           }
         } catch (_) {}
       }
-      location.replace(editor);
+      location.replace(`${editor}${window.location.search}${window.location.hash}`);
     })();
   </script>
   <noscript><meta http-equiv="refresh" content="0; url=./LUX_CLAN_EDITOR_BY.DAVID.XIT.html"/></noscript>
