@@ -744,15 +744,18 @@
     } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
   }
   async function openPublicPlayer(id) {
-    if (!state.user) { openLogin('member'); return; }
     if (!state.publicDirectory.size) await renderPublic();
     const member = state.publicDirectory.get(id);
     if (!member) { toast('⚠️ NO SE ENCONTRÓ EL PERFIL PÚBLICO'); return; }
     const plateCount = state.publicPlates.get(id) || 0;
+    const victories = await rpc('get_public_player_victories', { p_player_id:id }, false).catch(() => []);
+    const signed = (await Promise.all((victories || []).map(async row => ({ ...row, image:await signedEvidence(row.evidence_path).catch(() => '') })))).filter(row => row.image);
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button>
       <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}${member.age ? ` · ${Number(member.age)} años` : ''}</p></div></header>
       <section class="hub-modal-stats lux-player-stats lux-public-player-stats"><div><b>${Number(member.victories_1v1 || 0)}</b><small>1V1</small></div><div><b>${Number(member.victories_2v2 || 0)}</b><small>2V2</small></div><div><b>${Number(member.victories_3v3 || 0)}</b><small>3V3</small></div><div><b>${Number(member.victories_4v4 || 0)}</b><small>4V4</small></div><div><b>${Number(member.victories_other || 0)}</b><small>OTRAS</small></div><div><b>${Number(member.victories_total || 0)}</b><small>TOTAL</small></div><div><b>${plateCount}</b><small>PLACAS</small></div></section>
-      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL SEGURO</span><h3>Información del clan</h3><p>Las capturas, el correo y los controles administrativos siguen siendo privados. Aquí solo aparecen sus datos básicos y resultados aprobados.</p>${plateCount ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER SUS PLACAS</button>` : ''}</section>`;
+      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL VERIFICADO</span><h3>Actividad aprobada</h3><p>El correo y los controles administrativos siguen siendo privados. Solo se publican las victorias revisadas y aprobadas por el equipo administrador.</p>${plateCount ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER SUS PLACAS</button>` : ''}</section>
+      <div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS PÚBLICAS</span><h3>Victorias aprobadas</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div>
+      <section class="hub-modal-gallery lux-public-victory-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · APROBADA<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}</figcaption></figure>`).join('') : '<p class="hub-empty">Todavía no hay capturas aprobadas.</p>'}</section>`;
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }
