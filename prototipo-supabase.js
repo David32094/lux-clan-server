@@ -396,12 +396,14 @@
 
   async function renderPublic() {
     try {
-      const [ranking, plates] = await Promise.all([
+      const [ranking, plates, clanDirectory] = await Promise.all([
         rpc('get_public_ranking', {}, false),
-        rpc('get_public_plate_ranking', {}, false)
+        rpc('get_public_plate_ranking', {}, false),
+        state.user ? rpc('get_clan_directory').catch(() => []) : Promise.resolve([])
       ]);
       const all = Array.isArray(ranking) ? ranking : [];
-      state.publicDirectory = new Map(all.map(row => [row.player_id, row]));
+      const memberRows = Array.isArray(clanDirectory) && clanDirectory.length ? clanDirectory : all;
+      state.publicDirectory = new Map(memberRows.map(row => [row.player_id, row]));
       state.publicPlates = new Map((plates || []).map(row => [row.player_id, Number(row.plate_count || 0)]));
       const total4 = all.reduce((sum, row) => sum + Number(row.victories_4v4 || 0), 0);
       const total = all.reduce((sum, row) => sum + Number(row.victories_total || 0), 0);
@@ -429,7 +431,7 @@
     const page = document.querySelector('#hub-member .hub-page');
     if (!page || $('lux-member-directory')) return;
     page.insertAdjacentHTML('beforeend', `<section id="lux-member-directory" class="hub-card lux-member-directory">
-      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta las fichas públicas sin exponer correos, edades ni capturas privadas.</p></div><button type="button" onclick="window.luxAccess.openPublic()">VER RANKING</button></div>
+      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas sin exponer correos ni capturas privadas.</p></div><button type="button" onclick="window.luxAccess.openPublic()">VER RANKING</button></div>
       <label class="lux-member-search">BUSCAR INTEGRANTE<input id="lux-member-search" type="search" placeholder="Nombre o país" oninput="window.luxSupabase.renderMemberDirectory()"/></label>
       <div id="lux-member-directory-list" class="lux-member-directory-list"></div>
     </section>`);
@@ -443,7 +445,7 @@
       const searchable = `${row.display_name || ''} ${countryLabel(row.country_code)}`.toLocaleLowerCase('es');
       return !query || searchable.includes(query);
     });
-    target.innerHTML = rows.length ? rows.map((row, index) => `<button type="button" class="lux-member-public-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-member-public-avatar')}<span><strong>${esc(row.display_name || 'Integrante')}</strong><small>${esc(countryLabel(row.country_code))} · ${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></span><b>VER PERFIL</b></button>`).join('') : '<p class="hub-empty">No hay integrantes que coincidan con la búsqueda.</p>';
+    target.innerHTML = rows.length ? rows.map((row, index) => `<button type="button" class="lux-member-public-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-member-public-avatar')}<span><strong>${esc(row.display_name || 'Integrante')}</strong><small>${esc(countryLabel(row.country_code))}${row.age ? ` · ${Number(row.age)} años` : ''} · ${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></span><b>VER PERFIL</b></button>`).join('') : '<p class="hub-empty">No hay integrantes que coincidan con la búsqueda.</p>';
   }
   async function showMemberDirectory() {
     if (!state.user) { openLogin('member'); return; }
@@ -748,9 +750,9 @@
     if (!member) { toast('⚠️ NO SE ENCONTRÓ EL PERFIL PÚBLICO'); return; }
     const plateCount = state.publicPlates.get(id) || 0;
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button>
-      <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}</p></div></header>
+      <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}${member.age ? ` · ${Number(member.age)} años` : ''}</p></div></header>
       <section class="hub-modal-stats lux-player-stats lux-public-player-stats"><div><b>${Number(member.victories_1v1 || 0)}</b><small>1V1</small></div><div><b>${Number(member.victories_2v2 || 0)}</b><small>2V2</small></div><div><b>${Number(member.victories_3v3 || 0)}</b><small>3V3</small></div><div><b>${Number(member.victories_4v4 || 0)}</b><small>4V4</small></div><div><b>${Number(member.victories_other || 0)}</b><small>OTRAS</small></div><div><b>${Number(member.victories_total || 0)}</b><small>TOTAL</small></div><div><b>${plateCount}</b><small>PLACAS</small></div></section>
-      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL SEGURO</span><h3>Información pública del clan</h3><p>Las capturas, la edad, el correo y los controles administrativos son privados. Aquí solo aparecen los resultados aprobados.</p>${plateCount ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER SUS PLACAS</button>` : ''}</section>`;
+      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL SEGURO</span><h3>Información del clan</h3><p>Las capturas, el correo y los controles administrativos siguen siendo privados. Aquí solo aparecen sus datos básicos y resultados aprobados.</p>${plateCount ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER SUS PLACAS</button>` : ''}</section>`;
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }
