@@ -562,6 +562,8 @@
 
   async function renderAdmin() {
     if (!state.isStaff) return;
+    const sessionLabel = $('lux-leader-session');
+    if (sessionLabel) sessionLabel.textContent = state.isOwner ? 'Control privado · cuenta verificada' : `${roleLabel()} · cuenta verificada`;
     const [profiles, victories, ranking] = await Promise.all([
       request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,is_public,created_at&order=display_name.asc'),
       request('/rest/v1/victories?select=id,player_id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc'),
