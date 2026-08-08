@@ -431,7 +431,7 @@
     const page = document.querySelector('#hub-member .hub-page');
     if (!page || $('lux-member-directory')) return;
     page.insertAdjacentHTML('beforeend', `<section id="lux-member-directory" class="hub-card lux-member-directory">
-      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas sin exponer correos ni capturas privadas.</p></div><button type="button" onclick="window.luxAccess.openPublic()">VER RANKING</button></div>
+      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas, estadísticas y capturas aprobadas sin exponer correos.</p></div><button type="button" onclick="window.luxAccess.openPublic()">VER RANKING</button></div>
       <label class="lux-member-search">BUSCAR INTEGRANTE<input id="lux-member-search" type="search" placeholder="Nombre o país" oninput="window.luxSupabase.renderMemberDirectory()"/></label>
       <div id="lux-member-directory-list" class="lux-member-directory-list"></div>
     </section>`);
