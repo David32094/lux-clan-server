@@ -605,7 +605,8 @@
       } : null);
       if (!session) { if ($('lux-auth-help')) $('lux-auth-help').textContent = 'Revisa tu correo. Si el enlace falla, pulsa “Reenviar confirmación”.'; toast('✉️ REVISA TU CORREO Y CONFIRMA LA CUENTA'); return; }
       writeSession(session); state.user = data.user || session.user || null;
-      await hydrateAccount(); closeLogin();
+      await hydrateAccount(); 
+      if (window.luxAccess?.closeLogin) window.luxAccess.closeLogin();
       if (creating && display_name) { if ($('hub-name')) $('hub-name').value = display_name; await saveProfile(true); }
       if (state.isStaff) { window.luxHub.setScreen('admin'); await renderAdmin(); }
       else { window.luxHub.setScreen('member'); await renderMember(); }
