@@ -399,7 +399,10 @@
   align-items: center;
   gap: 28px;
   margin: 0;
-  padding: 30px 34px;
+  /* El HTML base normaliza los encabezados con padding:0!important.
+     Este panel sí necesita espacio interno para que el kicker no quede
+     recortado por el overflow de la tarjeta. */
+  padding: 30px 34px !important;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -696,7 +699,7 @@
   #hub-admin .hub-admin-head.lux-admin-overview {
     grid-template-columns: 1fr;
     gap: 18px;
-    padding: 24px 20px;
+    padding: 24px 20px !important;
   }
 
   #hub-admin .hub-admin-head.lux-admin-overview .hub-mvp {
