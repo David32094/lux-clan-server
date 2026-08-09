@@ -52,15 +52,23 @@
   z-index: 90;
   top: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(105px, 1fr));
   gap: 8px;
   margin: -22px 0 24px;
   padding: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--lux-border);
   border-radius: 16px;
   background: #0d0c11ee;
   box-shadow: 0 12px 35px #0008;
   backdrop-filter: blur(14px);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lux-member-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .lux-member-tabs button {

@@ -383,7 +383,7 @@
 
     const adminNav = document.querySelector('#hub-admin .hub-nav');
     if (adminNav) {
-      adminNav.innerHTML = `<button type="button" onclick="window.luxSupabase.openMember('home')">← MI CUENTA</button><strong>ADMINISTRACIÓN<small id="lux-leader-session">${state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido'}</small></strong><span class="lux-nav-actions"><button type="button" onclick="window.luxAccess.openPublic()">CLASIFICACIÓN</button><button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      adminNav.innerHTML = `<button type="button" onclick="window.luxSupabase.openMember('home')">← MI CUENTA</button><strong>ADMINISTRACIÓN<small id="lux-leader-session">${state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido'}</small></strong><span class="lux-nav-actions"><button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
     }
     renderAdminTabs();
     renderAdminMenu();
@@ -411,6 +411,7 @@
     if (!target || !state.isStaff) return;
     const items = [
       { section:'home', icon:'&#8962;', label:'INICIO', action:'window.luxHub.showAdminSummary()' },
+      { section:'ranking', icon:'&#128202;', label:'RANKING', action:'window.luxAccess.openPublic()' },
       { section:'review', icon:'&#9989;', label:'VICTORIAS', action:'window.luxSupabase.showAdminReview()', count:state.pendingReviews },
       { section:'directory', icon:'&#128101;', label:'INTEGRANTES', action:'window.luxHub.showDirectory()' },
       ...(state.isLeader ? [{ section:'plates', icon:'&#127941;', label:'PLACAS', action:'window.luxPlates.show()' }] : []),
@@ -451,6 +452,7 @@
     if (memberPage && !$('lux-member-tabs')) {
       memberPage.insertAdjacentHTML('afterbegin', `<div id="lux-member-tabs" class="lux-member-tabs" aria-label="Secciones de mi cuenta">
         <button type="button" data-member-section="home" onclick="window.luxSupabase.openMember('home')"><span>⌂</span>INICIO</button>
+        <button type="button" data-member-section="ranking" onclick="window.luxAccess.openPublic()"><span>📊</span>RANKING</button>
         <button type="button" data-member-section="profile" onclick="window.luxSupabase.showMyProfile()"><span>👤</span>MI PERFIL</button>
         <button type="button" data-member-section="victories" onclick="window.luxSupabase.showMyVictories()"><span>🏆</span>SUBIR VICTORIA</button>
         <button type="button" data-member-section="directory" onclick="window.luxSupabase.showMemberDirectory()"><span>👥</span>INTEGRANTES</button>
@@ -541,7 +543,7 @@
       if ($('lux-public-wins')) $('lux-public-wins').textContent = total4;
       if ($('lux-public-total')) $('lux-public-total').textContent = total;
       if ($('lux-public-podium')) $('lux-public-podium').innerHTML = all.slice(0, 3).map((row, index) => `<button type="button" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-podium-avatar')}<strong>${esc(row.display_name)}</strong><small>${row.victories_total} victorias aprobadas</small><em>VER PERFIL</em></button>`).join('') || '<p class="hub-empty">Todavía no hay resultados confirmados.</p>';
-      if ($('lux-public-ranking')) $('lux-public-ranking').innerHTML = all.map((row, index) => `<button type="button" class="lux-public-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></div><b>VER</b></button>`).join('') || '<p class="hub-empty">El ranking aparecerá al aprobarse victorias.</p>';
+      if ($('lux-public-ranking')) $('lux-public-ranking').innerHTML = all.map((row, index) => `<button type="button" class="lux-public-row" aria-label="Abrir perfil de ${esc(row.display_name)}" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></div></button>`).join('') || '<p class="hub-empty">El ranking aparecerá al aprobarse victorias.</p>';
       renderPublicPlates(plates || []);
       renderMemberTop(all);
       renderMemberDirectory();
@@ -561,7 +563,7 @@
     const page = document.querySelector('#hub-member .hub-page');
     if (!page || $('lux-member-directory')) return;
     page.insertAdjacentHTML('beforeend', `<section id="lux-member-directory" class="hub-card lux-member-directory">
-      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas, estadísticas y capturas aprobadas sin exponer correos.</p></div><button type="button" onclick="window.luxAccess.openPublic()">VER RANKING</button></div>
+      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas, estadísticas y capturas aprobadas sin exponer correos.</p></div></div>
       <label class="lux-member-search">BUSCAR INTEGRANTE<input id="lux-member-search" type="search" placeholder="Nombre o país" oninput="window.luxSupabase.renderMemberDirectory()"/></label>
       <div id="lux-member-directory-list" class="lux-member-directory-list"></div>
     </section>`);
@@ -1254,7 +1256,6 @@
       .lux-public-podium>button:hover,.lux-public-row:hover,.lux-member-public-row:hover{border-color:#ff6849aa;background:#ff220012}
       .lux-public-podium>button em{color:#ffcf72;font:.7rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}
       .lux-public-row{width:100%;color:#fff;text-align:left;cursor:pointer}
-      .lux-public-row>b{justify-self:end;color:#ffcf72;font:1rem 'Bebas Neue',Impact,sans-serif}
       .lux-member-top-simple{grid-template-columns:130px 160px minmax(220px,1fr)}
       .lux-member-top-simple>section{display:flex;align-items:stretch;justify-content:flex-end;gap:8px;padding:0}
       .lux-member-top-simple>section button,.lux-member-directory-head>button,.lux-owner-panel-actions button,.lux-public-profile-note button{border:1px solid #ffc44566;border-radius:8px;background:#ffc44512;color:#ffdc7a;padding:9px 11px;font:.9rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px;cursor:pointer}
