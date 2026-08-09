@@ -569,10 +569,6 @@
       if (tabs) tabs.insertAdjacentHTML('afterend', '<section id="lux-admin-menu" class="lux-admin-menu"></section>');
       else adminPage.insertAdjacentHTML('afterbegin', '<section id="lux-admin-menu" class="lux-admin-menu"></section>');
     }
-    const adminTitle = document.querySelector('#hub-admin .hub-admin-head h2');
-    const adminCopy = document.querySelector('#hub-admin .hub-admin-head p');
-    if (adminTitle) adminTitle.innerHTML = 'Resumen<br/><em>del clan.</em>';
-    if (adminCopy) adminCopy.textContent = 'Esta es la vista rápida. Usa las opciones de arriba para realizar una tarea.';
     const directoryBack = document.querySelector('#hub-member-directory .hub-directory-head>button');
     const platesBack = document.querySelector('#lux-plates-panel .lux-plates-head>button');
     if (directoryBack) directoryBack.textContent = '← VOLVER AL PANEL';
@@ -584,13 +580,55 @@
   function renderAdminMenu() {
     const target = $('lux-admin-menu');
     if (!target) return;
-    target.innerHTML = `<header><span class="hub-kicker">PANEL DE CONTROL</span><h2>¿Qué necesitas administrar?</h2><p>Elige una sola tarea para trabajar sin distracciones.</p></header><div class="lux-admin-actions">
-      <button type="button" onclick="window.luxSupabase.showAdminReview()"><i>✅</i><strong>Revisar victorias</strong><small>Aprobar o rechazar las capturas pendientes.</small></button>
-      <button type="button" onclick="window.luxHub.showDirectory()"><i>👥</i><strong>Integrantes</strong><small>Ver perfiles, banners y expulsar miembros.</small></button>
-      ${state.isLeader ? '<button type="button" onclick="window.luxPlates.show()"><i>🏅</i><strong>Placas</strong><small>Registrar y consultar las placas del clan.</small></button>' : ''}
-      <button type="button" onclick="window.luxSupabase.openAdminEditor()"><i>🎨</i><strong>Editor de banners</strong><small>Crear imágenes para integrantes y enfrentamientos.</small></button>
-      ${state.isOwner ? '<button type="button" onclick="window.luxSupabase.showOwnerAccounts()"><i>🔒</i><strong>Cuentas, roles y respaldo</strong><small>Nombrar líderes, gestionar cuentas y descargar copias.</small></button>' : ''}
-    </div>`;
+    if (!target.querySelector('.lux-admin-dashboard')) {
+      target.innerHTML = `<div class="lux-admin-dashboard">
+        <div class="lux-admin-overview-slot"></div>
+        <div class="lux-admin-stats-slot"></div>
+        <section class="lux-admin-focus" aria-live="polite">
+          <span class="lux-admin-focus-icon" aria-hidden="true">✓</span>
+          <div><span class="hub-kicker">ESTADO DE MODERACIÓN</span><strong id="lux-admin-focus-title">Todo está al día</strong><small id="lux-admin-focus-copy">No hay victorias esperando revisión.</small></div>
+          <button type="button" onclick="window.luxSupabase.showAdminReview()">VER VICTORIAS →</button>
+        </section>
+      </div>`;
+    }
+
+    const adminPage = document.querySelector('#hub-admin .hub-page');
+    const intro = adminPage?.querySelector('.hub-admin-head');
+    const stats = adminPage?.querySelector('.hub-admin-stats');
+    const introSlot = target.querySelector('.lux-admin-overview-slot');
+    const statsSlot = target.querySelector('.lux-admin-stats-slot');
+    if (intro && introSlot && intro.parentElement !== introSlot) introSlot.appendChild(intro);
+    if (stats && statsSlot && stats.parentElement !== statsSlot) statsSlot.appendChild(stats);
+
+    if (intro) {
+      intro.hidden = false;
+      intro.classList.add('lux-admin-overview');
+      const kicker = intro.querySelector('.hub-kicker');
+      const title = intro.querySelector('h2');
+      const copy = intro.querySelector('p');
+      if (kicker) kicker.textContent = 'CENTRO DE MANDO';
+      if (title) title.innerHTML = 'Estado <em>del clan.</em>';
+      if (copy) copy.textContent = 'Lo importante, ordenado en una sola vista. Usa la barra superior cuando necesites administrar algo.';
+    }
+
+    if (stats) {
+      stats.hidden = false;
+      const cards = [...stats.children];
+      if (cards[0]?.querySelector('small')) cards[0].querySelector('small').textContent = 'INTEGRANTES';
+      if (cards[1]?.querySelector('small')) cards[1].querySelector('small').textContent = 'VICTORIAS 4V4';
+      if (cards[2] && !cards[2].querySelector('#admin-total-wins')) cards[2].innerHTML = '<b id="admin-total-wins">0</b><small>VICTORIAS TOTALES</small>';
+      if (!$('admin-pending')) stats.insertAdjacentHTML('beforeend', '<article><b id="admin-pending">0</b><small>POR REVISAR</small></article>');
+    }
+
+    const pending = Number(state.pendingReviews || 0);
+    const focus = target.querySelector('.lux-admin-focus');
+    const focusIcon = target.querySelector('.lux-admin-focus-icon');
+    const focusTitle = $('lux-admin-focus-title');
+    const focusCopy = $('lux-admin-focus-copy');
+    if (focus) focus.classList.toggle('has-pending', pending > 0);
+    if (focusIcon) focusIcon.textContent = pending > 0 ? '!' : '✓';
+    if (focusTitle) focusTitle.textContent = pending > 0 ? `${pending} ${pending === 1 ? 'victoria pendiente' : 'victorias pendientes'}` : 'Todo está al día';
+    if (focusCopy) focusCopy.textContent = pending > 0 ? 'Hay capturas nuevas que necesitan una decisión.' : 'No hay victorias esperando revisión.';
   }
 
   function showMemberSection(section = 'home') {
@@ -949,6 +987,7 @@
     const mvp = ordered[0];
     if ($('admin-members')) $('admin-members').textContent = profiles.length;
     if ($('admin-wins')) $('admin-wins').textContent = approved.filter(row => row.mode === '4v4').length;
+    if ($('admin-total-wins')) $('admin-total-wins').textContent = approved.length;
     if ($('admin-mvp')) $('admin-mvp').innerHTML = mvp ? avatarHtml(mvp, 'hub-mvp-avatar') : '<span class="hub-mvp-avatar hub-avatar-empty">★</span>';
     if ($('admin-mvp-name')) $('admin-mvp-name').textContent = mvp?.display_name || 'Aún sin MVP';
     if ($('admin-mvp-detail')) $('admin-mvp-detail').textContent = mvp ? `${byId.get(mvp.id)?.victories_total || 0} victorias aprobadas` : 'Registra la primera victoria';
@@ -957,10 +996,12 @@
     if (duplicateRanking) duplicateRanking.hidden = true;
     const pendingVictories = (victories || []).filter(row => row.status === 'pending');
     state.pendingReviews = pendingVictories.length;
+    if ($('admin-pending')) $('admin-pending').textContent = pendingVictories.length;
     renderReviewQueue(pendingVictories);
     renderDirectory();
     ensureOwnerPanel();
     renderAdminTabs();
+    renderAdminMenu();
     await renderPlatesSelector();
     await renderPlatesRanking();
   }
