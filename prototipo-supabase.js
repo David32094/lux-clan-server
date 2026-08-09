@@ -12,7 +12,8 @@
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
-  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', adminSection:'home', pendingReviews:0 };
+  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', pendingReviews:0 };
+  let setScreenBase = null;
 
   // Preservar hash de OAuth en sessionStorage para inmunitad total contra escrituras de location.hash por otros scripts
   let rawHash = window.location.hash ? window.location.hash.substring(1) : '';
@@ -367,23 +368,39 @@
     renderAccountState();
     return state.user;
   }
+  function memberNavigationContent() {
+    return `<button type="button" onclick="window.luxHub.setScreen('home')">← INICIO</button><strong>MI CUENTA<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions">${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+  }
+
+  function adminNavigationContent(includeSessionId = true) {
+    const sessionId = includeSessionId ? ' id="lux-leader-session"' : '';
+    const sessionText = state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido';
+    return `<button type="button" onclick="window.luxSupabase.openMember('home')">← MI CUENTA</button><strong>ADMINISTRACIÓN<small${sessionId}>${sessionText}</small></strong><span class="lux-nav-actions"><button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+  }
+
   function renderNavigation() {
     const publicNav = document.querySelector('#lux-public-screen .hub-nav');
     if (publicNav) {
-      const accountActions = state.user
-        ? `<button type="button" onclick="window.luxSupabase.openMember('home')">MI CUENTA</button>${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
-        : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR</button>';
-      publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxHub.setScreen('home')">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`;
+      if (state.navigationContext === 'admin' && state.isStaff) {
+        publicNav.innerHTML = adminNavigationContent(false);
+      } else if (state.navigationContext === 'member' && state.user) {
+        publicNav.innerHTML = memberNavigationContent();
+      } else {
+        const accountActions = state.user
+          ? `<button type="button" onclick="window.luxSupabase.openMember('home')">MI CUENTA</button>${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
+          : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR</button>';
+        publicNav.innerHTML = `<button type="button" class="lux-nav-brand" onclick="window.luxHub.setScreen('home')">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`;
+      }
     }
 
     const memberNav = document.querySelector('#hub-member .hub-nav');
     if (memberNav) {
-      memberNav.innerHTML = `<button type="button" onclick="window.luxHub.setScreen('home')">← INICIO</button><strong>MI CUENTA<small>${esc(roleLabel())}</small></strong><span class="lux-nav-actions">${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      memberNav.innerHTML = memberNavigationContent();
     }
 
     const adminNav = document.querySelector('#hub-admin .hub-nav');
     if (adminNav) {
-      adminNav.innerHTML = `<button type="button" onclick="window.luxSupabase.openMember('home')">← MI CUENTA</button><strong>ADMINISTRACIÓN<small id="lux-leader-session">${state.user && state.isStaff ? `${esc(roleLabel())} · cuenta verificada` : 'Acceso restringido'}</small></strong><span class="lux-nav-actions"><button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button></span>`;
+      adminNav.innerHTML = adminNavigationContent();
     }
     renderAdminTabs();
     renderAdminMenu();
@@ -410,23 +427,89 @@
     const target = $('lux-admin-tabs');
     if (!target || !state.isStaff) return;
     const items = [
-      { section:'home', icon:'&#8962;', label:'INICIO', action:'window.luxHub.showAdminSummary()' },
-      { section:'ranking', icon:'&#128202;', label:'RANKING', action:'window.luxAccess.openPublic()' },
-      { section:'review', icon:'&#9989;', label:'VICTORIAS', action:'window.luxSupabase.showAdminReview()', count:state.pendingReviews },
-      { section:'directory', icon:'&#128101;', label:'INTEGRANTES', action:'window.luxHub.showDirectory()' },
-      ...(state.isLeader ? [{ section:'plates', icon:'&#127941;', label:'PLACAS', action:'window.luxPlates.show()' }] : []),
-      { section:'editor', icon:'&#127912;', label:'BANNERS', action:'window.luxSupabase.openAdminEditor()' },
-      ...(state.isOwner ? [{ section:'accounts', icon:'&#128274;', label:'CUENTAS', action:'window.luxSupabase.showOwnerAccounts()' }] : [])
+      { section:'home', icon:'&#8962;', label:'INICIO' },
+      { section:'ranking', icon:'&#128202;', label:'RANKING' },
+      { section:'review', icon:'&#9989;', label:'VICTORIAS', count:state.pendingReviews },
+      { section:'directory', icon:'&#128101;', label:'INTEGRANTES' },
+      ...(state.isLeader ? [{ section:'plates', icon:'&#127941;', label:'PLACAS' }] : []),
+      { section:'editor', icon:'&#127912;', label:'BANNERS' },
+      ...(state.isOwner ? [{ section:'accounts', icon:'&#128274;', label:'CUENTAS' }] : [])
     ];
-    target.innerHTML = items.map(item => `<button type="button" data-admin-section="${item.section}" onclick="${item.action}"><span aria-hidden="true">${item.icon}</span><strong>${item.label}</strong>${item.count ? `<b aria-label="${item.count} pendientes">${item.count}</b>` : ''}</button>`).join('');
+    target.innerHTML = items.map(item => `<button type="button" data-admin-section="${item.section}" onclick="window.luxSupabase.navigateAdmin('${item.section}')"><span aria-hidden="true">${item.icon}</span><strong>${item.label}</strong>${item.count ? `<b aria-label="${item.count} pendientes">${item.count}</b>` : ''}</button>`).join('');
     target.style.setProperty('--lux-admin-tab-count', items.length);
     setAdminSection(state.adminSection);
   }
 
   function openAdminEditor() {
     if (!state.isStaff) return;
+    state.navigationContext = 'admin';
     setAdminSection('editor');
     openEditor(true);
+  }
+
+  function clonePrimaryTabs(context, activeSection) {
+    ensureSimpleExperience();
+    if (context === 'admin') renderAdminTabs();
+    const source = context === 'admin' ? $('lux-admin-tabs') : $('lux-member-tabs');
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    clone.id = `lux-${context}-context-tabs`;
+    clone.classList.add('lux-context-tabs');
+    clone.querySelectorAll('button').forEach(button => {
+      const section = context === 'admin' ? button.dataset.adminSection : button.dataset.memberSection;
+      const active = section === activeSection;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-current', active ? 'page' : 'false');
+    });
+    return clone;
+  }
+
+  function mountRankingTabs(context) {
+    const page = document.querySelector('#lux-public-screen .hub-page');
+    if (!page) return;
+    page.querySelectorAll(':scope > .lux-context-tabs').forEach(node => node.remove());
+    if (!context) return;
+    const tabs = clonePrimaryTabs(context, 'ranking');
+    if (tabs) page.prepend(tabs);
+  }
+
+  function mountEditorNavigation(context) {
+    const host = $('hub-editor-nav');
+    if (!host) return;
+    const navigation = context === 'admin' ? adminNavigationContent(false) : memberNavigationContent();
+    host.classList.add('lux-editor-context-nav');
+    host.innerHTML = `<div class="hub-nav lux-editor-context-bar">${navigation}</div><div class="lux-editor-context-tabs-wrap"></div>`;
+    const tabs = clonePrimaryTabs(context, context === 'admin' ? 'editor' : 'profile');
+    if (tabs) host.querySelector('.lux-editor-context-tabs-wrap')?.appendChild(tabs);
+  }
+
+  async function openRanking(context = null) {
+    const inferredContext = context
+      || (document.body.classList.contains('lux-hub-admin') ? 'admin' : null)
+      || (document.body.classList.contains('lux-hub-member') ? 'member' : null);
+    state.navigationContext = inferredContext;
+    if (inferredContext === 'admin' && state.isStaff) setAdminSection('ranking');
+    const editorNavigation = $('hub-editor-nav');
+    if (editorNavigation) editorNavigation.hidden = true;
+    setScreenBase?.('public');
+    await renderPublic();
+    mountRankingTabs(inferredContext);
+    renderNavigation();
+    window.scrollTo({ top:0, behavior:'smooth' });
+  }
+
+  async function navigateAdmin(section = 'home') {
+    if (!state.isStaff) return;
+    state.navigationContext = 'admin';
+    if (section === 'ranking') return openRanking('admin');
+    if (section === 'editor') return openAdminEditor();
+    window.luxHub.setScreen('admin');
+    renderNavigation();
+    if (section === 'review') return showAdminReview();
+    if (section === 'directory') return showDirectory();
+    if (section === 'plates') return showPlates();
+    if (section === 'accounts') return showOwnerAccounts();
+    return showAdminSummary();
   }
 
   function ensureSimpleExperience() {
@@ -452,7 +535,7 @@
     if (memberPage && !$('lux-member-tabs')) {
       memberPage.insertAdjacentHTML('afterbegin', `<div id="lux-member-tabs" class="lux-member-tabs" aria-label="Secciones de mi cuenta">
         <button type="button" data-member-section="home" onclick="window.luxSupabase.openMember('home')"><span>⌂</span>INICIO</button>
-        <button type="button" data-member-section="ranking" onclick="window.luxAccess.openPublic()"><span>📊</span>RANKING</button>
+        <button type="button" data-member-section="ranking" onclick="window.luxSupabase.openRanking('member')"><span>📊</span>RANKING</button>
         <button type="button" data-member-section="profile" onclick="window.luxSupabase.showMyProfile()"><span>👤</span>MI PERFIL</button>
         <button type="button" data-member-section="victories" onclick="window.luxSupabase.showMyVictories()"><span>🏆</span>SUBIR VICTORIA</button>
         <button type="button" data-member-section="directory" onclick="window.luxSupabase.showMemberDirectory()"><span>👥</span>INTEGRANTES</button>
@@ -557,7 +640,7 @@
     if (!target) return;
     const mine = all.find(row => row.player_id === state.user?.id);
     const position = mine ? all.findIndex(row => row.player_id === mine.player_id) + 1 : 0;
-    target.innerHTML = `<div class="lux-member-top-head"><div><span class="hub-kicker">MI POSICIÓN</span><h3>Resumen competitivo</h3></div></div><div class="lux-member-top-grid lux-member-top-simple"><article><b>${position ? `#${position}` : '—'}</b><small>POSICIÓN GENERAL</small></article><article><b>${mine?.victories_total || 0}</b><small>VICTORIAS APROBADAS</small></article><section><button type="button" onclick="window.luxAccess.openPublic()">VER CLASIFICACIÓN</button><button type="button" onclick="window.luxSupabase.showMemberDirectory()">VER INTEGRANTES</button></section></div>`;
+    target.innerHTML = `<div class="lux-member-top-head"><div><span class="hub-kicker">MI POSICIÓN</span><h3>Resumen competitivo</h3></div></div><div class="lux-member-top-grid lux-member-top-simple"><article><b>${position ? `#${position}` : '—'}</b><small>POSICIÓN GENERAL</small></article><article><b>${mine?.victories_total || 0}</b><small>VICTORIAS APROBADAS</small></article><section><button type="button" onclick="window.luxSupabase.openRanking('member')">VER CLASIFICACIÓN</button><button type="button" onclick="window.luxSupabase.showMemberDirectory()">VER INTEGRANTES</button></section></div>`;
   }
   function ensureMemberDirectory() {
     const page = document.querySelector('#hub-member .hub-page');
@@ -1084,6 +1167,7 @@
     if (leader && !state.isStaff) { toast('⛔ TU CUENTA NO TIENE PERMISOS DE LÍDER'); return; }
     if (!leader && !await saveProfile(true)) return;
     state.editorBack = leader ? 'admin' : 'member';
+    state.navigationContext = state.editorBack;
     if (!leader) {
       const profile = state.profile;
       if ($('t-nombre-integ')) $('t-nombre-integ').value = profile?.display_name || '';
@@ -1096,6 +1180,7 @@
     window.luxLeaderDemo?.setMode(leader ? 'leader' : 'member');
     window.switchTab?.('integrantes');
     window.luxHub.setScreen('editor');
+    mountEditorNavigation(state.editorBack);
   }
   function backFromEditor() {
     if (state.editorBack === 'admin') openLeader();
@@ -1174,10 +1259,11 @@
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
-    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.adminSection = 'home'; state.pendingReviews = 0; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
+    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.navigationContext = null; state.adminSection = 'home'; state.pendingReviews = 0; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
   }
   async function openMember(section = 'home') {
     if (!state.user) { openLogin('member'); return; }
+    state.navigationContext = 'member';
     window.luxHub.setScreen('member');
     await renderMember();
     showMemberSection(section);
@@ -1186,6 +1272,7 @@
   async function openLeader() {
     if (!state.user) { openLogin('leader'); return; }
     if (!state.isStaff) { toast('⛔ ESTA CUENTA NO TIENE PERMISOS DE LÍDER'); return; }
+    state.navigationContext = 'admin';
     window.luxHub.setScreen('admin');
     await showAdminSummary();
     renderNavigation();
@@ -1300,10 +1387,10 @@
   }
   function install() {
     installStyles();
-    const oldSetScreen = window.luxHub.setScreen;
+    setScreenBase = window.luxHub.setScreen;
     window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadOfficialBanner,
       askAdmin:openLeader, confirmAdmin:openLeader, closeAdminKey:() => {}, setRole:() => toast('ℹ️ LOS PERMISOS SE GESTIONAN EN EL SERVIDOR'), removePlayer:requestMemberRemoval };
-    window.luxAccess = { ...window.luxAccess, openPublic:() => { oldSetScreen('public'); renderPublic(); window.scrollTo({ top:0, behavior:'smooth' }); }, openLogin, closeLogin, loginMember:openMember, loginLeader:openLeader, renderPublic, renderMemberTop:() => renderPublic() };
+    window.luxAccess = { ...window.luxAccess, openPublic:openRanking, openLogin, closeLogin, loginMember:openMember, loginLeader:openLeader, renderPublic, renderMemberTop:() => renderPublic() };
     window.luxPlates = { ...window.luxPlates, show:showPlates, add:addPlate, openGallery:openPlateGallery, closeGallery:closePlateGallery, remove:removePlate, renderSelector:renderPlatesSelector, renderRanking:renderPlatesRanking, renderPublic:renderPublic };
     document.querySelector('.hub-choice.player')?.setAttribute('onclick', 'window.luxAccess.loginMember()');
     document.querySelector('.hub-choice.leader')?.setAttribute('onclick', 'window.luxAccess.loginLeader()');
@@ -1328,7 +1415,7 @@
     document.querySelectorAll('.hub-local').forEach(node => { node.textContent = '● DATOS PROTEGIDOS · crea una cuenta para participar'; });
     ensureMemberDirectory();
     ensureSimpleExperience();
-    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, setAccountRole, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview, openAdminEditor };
+    window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, openRanking, navigateAdmin, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, setAccountRole, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview, openAdminEditor };
     hydrateAccount().then(async user => {
       await renderPublic();
       if (user && arrivedFromOAuth) {
