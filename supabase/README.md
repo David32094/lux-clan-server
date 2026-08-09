@@ -1,18 +1,22 @@
 # Backend seguro de LUX CLAN
 
-Este directorio contiene la base para pasar de la demo local a una web real.
-La web puede estar publicada en GitHub Pages, pero las cuentas, imágenes y
-resultados se guardan en Supabase.
+Supabase guarda cuentas, perfiles, roles, victorias, placas y archivos. Ejecuta
+los SQL de `migrations/` en orden de nombre; las migraciones posteriores
+reemplazan funciones creadas por las anteriores.
 
-1. Crear un proyecto de Supabase y ejecutar la migración de `migrations/` en
-   el SQL Editor.
-2. Crear el archivo `supabase-client-config.js` a partir de
-   `client-config.example.js`, con la URL y la **publishable key** del proyecto.
-3. Añadir ese archivo a `.gitignore`; nunca subir claves privadas ni la
-   `service_role key`.
-4. Cuando David y las otras líderes hayan creado su cuenta, asignarles su rol
-   desde el SQL Editor usando sus UUID de `auth.users`.
+La configuración de producción se genera en GitHub Actions a partir de
+`SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY`. El archivo versionado de la raíz es
+solo un placeholder local. Nunca uses `service_role`, secretos OAuth ni claves
+`sb_secret_...` en el navegador.
 
-La migración aplica Row Level Security: un integrante solo puede modificar su
-perfil y sus capturas pendientes; las victorias solo cuentan después de que una
-líder las aprueba. El ranking público no expone capturas ni edades.
+La seguridad real depende de RLS y de las comprobaciones internas de las RPC:
+
+- cada cuenta nueva empieza como `member`;
+- solo `owner` gestiona roles y ve correos;
+- staff revisa capturas;
+- una victoria solo suma cuando está `approved`;
+- las evidencias aprobadas de perfiles públicos son visibles en sus perfiles;
+- pendientes y rechazadas permanecen protegidas.
+
+La documentación completa del esquema, buckets, RPC, roles, migraciones y
+pruebas está en [../GUIA_TECNICA_PARA_IA.md](../GUIA_TECNICA_PARA_IA.md).
