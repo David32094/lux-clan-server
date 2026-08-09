@@ -12,7 +12,7 @@
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
-  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', pendingReviews:0 };
+  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, profileDraftDirty:false, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', pendingReviews:0 };
   let setScreenBase = null;
 
   // Preservar hash de OAuth en sessionStorage para inmunitad total contra escrituras de location.hash por otros scripts
@@ -736,13 +736,17 @@
     const rows = await request(`/rest/v1/victories?player_id=eq.${encodeURIComponent(state.user.id)}&select=id,mode,evidence_path,status,created_at,rejection_reason&order=created_at.desc`);
     const accepted = rows.filter(row => row.status === 'approved');
     const stats = modeStats(rows);
-    if ($('hub-name')) $('hub-name').value = profile?.display_name === 'Jugador' ? '' : (profile?.display_name || '');
-    if ($('hub-age')) $('hub-age').value = profile?.age || '';
-    if ($('hub-country')) $('hub-country').value = profile?.country_code || '';
+    if (!state.profileDraftDirty) {
+      if ($('hub-name')) $('hub-name').value = profile?.display_name === 'Jugador' ? '' : (profile?.display_name || '');
+      if ($('hub-age')) $('hub-age').value = profile?.age || '';
+      if ($('hub-country')) $('hub-country').value = profile?.country_code || '';
+    }
     if ($('hub-role')) $('hub-role').value = roleLabel();
     const avatar = profile?.avatar_path ? publicUrl('lux-avatars', profile.avatar_path) : '';
-    if ($('hub-avatar')) { $('hub-avatar').src = avatar; $('hub-avatar').hidden = !avatar; }
-    if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = Boolean(avatar);
+    if (!state.pendingAvatar) {
+      if ($('hub-avatar')) { $('hub-avatar').src = avatar; $('hub-avatar').hidden = !avatar; }
+      if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = Boolean(avatar);
+    }
     if ($('hub-1v1')) $('hub-1v1').textContent = stats['1v1'];
     if ($('hub-2v2')) $('hub-2v2').textContent = stats['2v2'];
     if ($('hub-3v3')) $('hub-3v3').textContent = stats['3v3'];
@@ -774,6 +778,7 @@
       body:JSON.stringify({ display_name, age, country_code, country_name:countryName(), avatar_path })
     });
     await loadProfile();
+    state.profileDraftDirty = false;
     if (state.profile && state.user?.id) {
       state.directory.set(state.user.id, state.profile);
     }
@@ -793,6 +798,7 @@
     const file = event?.target?.files?.[0];
     if (!isImage(file, MAX_AVATAR)) { toast('⚠️ USA JPG, PNG O WEBP DE HASTA 5 MB'); return; }
     state.pendingAvatar = file;
+    state.profileDraftDirty = true;
     const url = URL.createObjectURL(file);
     if ($('hub-avatar')) { $('hub-avatar').src = url; $('hub-avatar').hidden = false; }
     if ($('hub-avatar-empty')) $('hub-avatar-empty').hidden = true;
@@ -819,7 +825,7 @@
       toast(`⚠️ EL BANNER SE DESCARGÓ, PERO NO SE PUDO GUARDAR: ${errorMessage(error).toUpperCase()}`);
     }
   }
-  async function loadMine() { if (state.user) await renderMember(); }
+  async function loadMine() { return state.profile; }
   async function registerVictory() {
     if (!state.user) { openLogin('member'); return; }
     const file = $('hub-victory')?.files?.[0];
@@ -1300,7 +1306,7 @@
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
-    writeSession(null); state.user = null; state.profile = null; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.navigationContext = null; state.adminSection = 'home'; state.pendingReviews = 0; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
+    writeSession(null); state.user = null; state.profile = null; state.pendingAvatar = null; state.profileDraftDirty = false; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.navigationContext = null; state.adminSection = 'home'; state.pendingReviews = 0; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
   }
   async function openMember(section = 'home') {
     if (!state.user) { openLogin('member'); return; }
@@ -1438,7 +1444,16 @@
     document.querySelector('.lux-public-entry')?.remove();
     const mode = $('hub-mode');
     if (mode) mode.innerHTML = '<option value="1v1">VICTORIA 1V1</option><option value="2v2">VICTORIA 2V2</option><option value="3v3">VICTORIA 3V3</option><option value="4v4" selected>VICTORIA 4V4</option><option value="Otro">OTRA PARTIDA</option>';
-    const nameInput = $('hub-name'); if (nameInput) nameInput.maxLength = 24;
+    const nameInput = $('hub-name');
+    if (nameInput) {
+      nameInput.maxLength = 24;
+      nameInput.removeAttribute('onblur');
+      nameInput.onblur = null;
+    }
+    [$('hub-name'), $('hub-age'), $('hub-country')].filter(Boolean).forEach(field => {
+      const eventName = field.tagName === 'SELECT' ? 'change' : 'input';
+      field.addEventListener(eventName, () => { state.profileDraftDirty = true; });
+    });
     const memberBannerButton = document.querySelector('#hub-member .hub-profile .hub-actions .primary');
     if (memberBannerButton) {
       memberBannerButton.textContent = '⬇️ DESCARGAR MI BANNER';
