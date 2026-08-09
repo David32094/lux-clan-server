@@ -24,7 +24,8 @@
 
 #hub-member .hub-nav,
 #hub-admin .hub-nav,
-#lux-public-screen .hub-nav {
+#lux-public-screen .hub-nav,
+#hub-editor-nav .lux-editor-context-bar {
   display: grid !important;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center !important;
@@ -33,7 +34,8 @@
 
 #hub-member .hub-nav > strong,
 #hub-admin .hub-nav > strong,
-#lux-public-screen .hub-nav > strong {
+#lux-public-screen .hub-nav > strong,
+#hub-editor-nav .lux-editor-context-bar > strong {
   order: 0 !important;
   width: auto !important;
   text-align: center;
@@ -41,7 +43,8 @@
 
 #hub-member .hub-nav > .lux-nav-actions,
 #hub-admin .hub-nav > .lux-nav-actions,
-#lux-public-screen .hub-nav > .lux-nav-actions {
+#lux-public-screen .hub-nav > .lux-nav-actions,
+#hub-editor-nav .lux-editor-context-bar > .lux-nav-actions {
   width: auto !important;
   max-width: none !important;
   overflow: visible !important;
@@ -171,6 +174,29 @@
 
 .lux-admin-tabs button.active {
   box-shadow: inset 0 -3px 0 var(--lux-red);
+}
+
+#hub-editor-nav.lux-editor-context-nav {
+  padding: 0 !important;
+  border: 0 !important;
+  background: #09090d !important;
+  color: inherit !important;
+  font: inherit !important;
+  letter-spacing: normal !important;
+}
+
+#hub-editor-nav.lux-editor-context-nav span {
+  margin-left: 0 !important;
+}
+
+.lux-editor-context-tabs-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 42px 17px 0;
+}
+
+.lux-editor-context-tabs-wrap .lux-context-tabs {
+  margin-top: -22px;
 }
 
 .lux-member-home > header,
@@ -424,7 +450,8 @@
 @media (max-width: 760px) {
   #hub-member .hub-nav,
   #hub-admin .hub-nav,
-  #lux-public-screen .hub-nav {
+  #lux-public-screen .hub-nav,
+  #hub-editor-nav .lux-editor-context-bar {
     grid-template-columns: auto minmax(0, 1fr) auto !important;
     flex-wrap: nowrap !important;
     padding: 9px 10px !important;
@@ -435,14 +462,16 @@
   }
 
   #hub-member .hub-nav > strong,
-  #hub-admin .hub-nav > strong {
+  #hub-admin .hub-nav > strong,
+  #hub-editor-nav .lux-editor-context-bar > strong {
     font-size: .94rem !important;
     letter-spacing: 1px !important;
   }
 
   #hub-member .hub-nav button,
   #hub-admin .hub-nav button,
-  #lux-public-screen .hub-nav button {
+  #lux-public-screen .hub-nav button,
+  #hub-editor-nav .lux-editor-context-bar button {
     padding: 8px !important;
     font-size: .78rem !important;
   }
@@ -485,6 +514,10 @@
 
   .lux-admin-tabs button > span {
     font-size: .96rem;
+  }
+
+  .lux-editor-context-tabs-wrap {
+    padding: 30px 11px 0;
   }
 
   .lux-simple-actions,
