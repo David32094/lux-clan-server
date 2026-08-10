@@ -1,24 +1,29 @@
 # LUX CLAN SERVER
 
-Editor de banners y centro del clan, diseñado para móviles Android y iPhone.
+Centro del clan y editor de banners para iPhone, Android y escritorio. La web
+usa GitHub Pages como frontend y Supabase para autenticación, perfiles, roles,
+victorias, capturas, placas y almacenamiento.
+
+## Documentación completa
+
+Antes de modificar el proyecto, lee [GUIA_TECNICA_PARA_IA.md](GUIA_TECNICA_PARA_IA.md).
+Incluye arquitectura, archivos, navegación por rol, esquema de Supabase,
+seguridad, editor Canvas, PWA/offline, despliegue, pruebas y reglas para no
+romper datos existentes.
 
 ## Uso local
 
-Ejecuta `ABRIR-EDITOR.bat` y abre la dirección que aparece en pantalla. Para
-probarlo desde otro dispositivo conectado a la misma red, utiliza la IP local
-del equipo en vez de `localhost`.
+Ejecuta `ABRIR-EDITOR.bat`. Abre un servidor local en el puerto `8091` y carga
+`LUX_CLAN_EDITOR_BY.DAVID.XIT.html`. El BAT termina cualquier proceso que ya use
+ese puerto; si necesitas conservarlo, inicia manualmente `python -m http.server`
+en otro puerto.
 
-## Publicación
+## Producción
 
-El repositorio incluye `.github/workflows/deploy-pages.yml`: al subir la rama
-`main`, GitHub Actions valida los scripts y publica el sitio con GitHub Pages.
+`.github/workflows/deploy-pages.yml` valida los scripts, genera la configuración
+pública de Supabase desde variables/secretos de GitHub y publica `main` en
+GitHub Pages.
 
-## Datos reales y seguridad
-
-GitHub Pages solo sirve los archivos. Las cuentas, victorias, capturas y placas
-reales deben conectarse a Supabase siguiendo [supabase/README.md](supabase/README.md).
-La versión local mantiene sus datos exclusivamente en el navegador y debe usarse
-solo como demo hasta terminar esa conexión.
-
-Nunca subas `.env`, `supabase-client-config.js`, contraseñas ni una
-`service_role key` a GitHub.
+Nunca subas `.env`, contraseñas, secretos OAuth, claves `sb_secret_...` ni una
+`service_role key`. La publishable key sí llega al navegador y debe estar
+protegida por RLS, no tratarse como una credencial administrativa.
