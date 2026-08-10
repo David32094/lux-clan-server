@@ -12,8 +12,10 @@
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
-  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, profileDraftDirty:false, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', pendingReviews:0 };
+  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, profileDraftDirty:false, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', pendingReviews:0, authStatus:'checking' };
   let setScreenBase = null;
+  let authReadyPromise = null;
+  let refreshPromise = null;
 
   // Preservar hash de OAuth en sessionStorage para inmunitad total contra escrituras de location.hash por otros scripts
   let rawHash = window.location.hash ? window.location.hash.substring(1) : '';
@@ -52,13 +54,24 @@
   });
 
   function readSession() {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
-    catch (_) { return null; }
+    let raw = null;
+    try { raw = localStorage.getItem(SESSION_KEY); } catch (_) {}
+    if (!raw) {
+      try { raw = sessionStorage.getItem(SESSION_KEY); } catch (_) {}
+    }
+    try { return JSON.parse(raw || 'null'); } catch (_) { return null; }
   }
   function writeSession(session) {
     state.session = session || null;
-    if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    else localStorage.removeItem(SESSION_KEY);
+    const serialized = session ? JSON.stringify(session) : null;
+    try {
+      if (serialized) localStorage.setItem(SESSION_KEY, serialized);
+      else localStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
+    try {
+      if (serialized) sessionStorage.setItem(SESSION_KEY, serialized);
+      else sessionStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
   }
   function errorMessage(error, fallback = 'No se pudo completar la operación') {
     return error?.message || error?.msg || error?.error_description || fallback;
@@ -302,34 +315,62 @@
   }
 
   async function refreshSession() {
+    if (refreshPromise) return refreshPromise;
     const current = state.session || readSession();
     if (!current?.refresh_token) return null;
-    const data = await request('/auth/v1/token?grant_type=refresh_token', {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ refresh_token:current.refresh_token })
-    }, false);
-    writeSession(data);
-    return data;
+    refreshPromise = (async () => {
+      const data = await request('/auth/v1/token?grant_type=refresh_token', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ refresh_token:current.refresh_token })
+      }, false);
+      const renewed = {
+        ...current,
+        ...data,
+        refresh_token:data?.refresh_token || current.refresh_token,
+        user:data?.user || current.user || null
+      };
+      writeSession(renewed);
+      return renewed;
+    })();
+    try { return await refreshPromise; }
+    finally { refreshPromise = null; }
   }
   async function validateSession() {
     parseOAuthCallback();
     const saved = readSession();
-    if (!saved?.access_token) return null;
+    if (!saved?.access_token) {
+      state.authStatus = 'anonymous';
+      return null;
+    }
     writeSession(saved);
     try {
       if (!saved.expires_at || saved.expires_at * 1000 < Date.now() + 45_000) await refreshSession();
       const user = await request('/auth/v1/user');
       state.user = user;
+      state.authStatus = 'authenticated';
+      writeSession({ ...(state.session || saved), user });
       return user;
-    } catch (_) {
+    } catch (firstError) {
       try {
         await refreshSession();
         const user = await request('/auth/v1/user');
         state.user = user;
+        state.authStatus = 'authenticated';
+        writeSession({ ...(state.session || saved), user });
         return user;
-      } catch (_) {
-        writeSession(null);
-        state.user = null;
-        return null;
+      } catch (lastError) {
+        const definitelyInvalid = [400, 401].includes(Number(lastError?.status)) || (!saved.refresh_token && Number(firstError?.status) === 401);
+        if (definitelyInvalid) {
+          writeSession(null);
+          state.user = null;
+          state.authStatus = 'anonymous';
+          return null;
+        }
+        // Un corte de red o un error temporal del servidor no debe cerrar la
+        // cuenta. Conservamos la identidad ya verificada y reintentamos en la
+        // siguiente carga o petición protegida.
+        state.user = saved.user || state.session?.user || null;
+        state.authStatus = 'unavailable';
+        return state.user;
       }
     }
   }
@@ -364,8 +405,14 @@
   }
   async function hydrateAccount() {
     if (!await validateSession()) return null;
-    await Promise.all([loadRole(), loadProfile()]);
+    await Promise.allSettled([loadRole(), loadProfile()]);
     renderAccountState();
+    return state.user;
+  }
+  async function waitForAuth() {
+    if (state.authStatus === 'checking' && authReadyPromise) {
+      try { await authReadyPromise; } catch (_) {}
+    }
     return state.user;
   }
   function memberNavigationContent() {
@@ -407,10 +454,19 @@
   }
   function renderAccountState() {
     const note = document.querySelector('.hub-local');
-    if (note) note.textContent = state.user ? `● SESIÓN SEGURA · ${state.user.email || 'cuenta conectada'}` : '● DATOS PROTEGIDOS · crea una cuenta para participar';
+    if (note) note.textContent = state.authStatus === 'checking' ? '● REVISANDO LA SESIÓN GUARDADA…' : state.user ? `● SESIÓN SEGURA · ${state.user.email || 'cuenta conectada'}` : '● DATOS PROTEGIDOS · crea una cuenta para participar';
+    const memberChoice = document.querySelector('.hub-choice.player');
+    const memberAction = memberChoice?.querySelector(':scope > b');
+    const memberDescription = memberChoice?.querySelector('small');
+    if (memberAction) memberAction.textContent = state.authStatus === 'checking' ? 'REVISANDO…' : state.user ? 'ABRIR →' : 'ENTRAR →';
+    if (memberDescription) memberDescription.textContent = state.user ? 'Tu sesión ya está abierta en este navegador' : 'Mi perfil, mi banner y mis victorias';
+    const leaderChoice = document.querySelector('.hub-choice.leader');
+    const leaderAction = leaderChoice?.querySelector(':scope > b');
+    if (leaderAction) leaderAction.textContent = state.authStatus === 'checking' ? 'REVISANDO…' : state.isStaff ? 'ABRIR →' : 'ENTRAR →';
     const leader = $('lux-leader-session');
     if (leader) leader.textContent = state.user && state.isStaff ? `${roleLabel()} · cuenta verificada` : 'Acceso con cuenta';
     document.body.classList.toggle('lux-supabase-ready', Boolean(state.user));
+    document.documentElement.dataset.luxAuth = state.authStatus;
     renderNavigation();
   }
 
@@ -1239,8 +1295,25 @@
     if (modal) modal.hidden = true;
   }
 
-  function openLogin(kind = 'member') {
+  function renderLoginLoading() {
+    const modal = $('lux-login-modal');
+    if (!modal) return;
+    modal.innerHTML = `<div class="lux-login-box lux-login-checking" role="status" aria-live="polite">
+      <span class="lux-auth-spinner" aria-hidden="true"></span>
+      <span class="hub-kicker">CUENTA DEL CLAN</span>
+      <h2>Revisando tu sesión</h2>
+      <p>Espera un momento. Si ya habías entrado en este navegador, abriremos tu cuenta automáticamente.</p>
+    </div>`;
+    modal.hidden = false;
+  }
+
+  async function openLogin(kind = 'member') {
+    if (state.authStatus === 'checking') {
+      renderLoginLoading();
+      await waitForAuth();
+    }
     if (state.user) {
+      closeLogin();
       if (kind === 'leader') openLeader();
       else openMember();
       return;
@@ -1306,9 +1379,10 @@
   }
   async function logout() {
     try { if (state.session?.access_token) await request('/auth/v1/logout', { method:'POST' }); } catch (_) {}
-    writeSession(null); state.user = null; state.profile = null; state.pendingAvatar = null; state.profileDraftDirty = false; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.navigationContext = null; state.adminSection = 'home'; state.pendingReviews = 0; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
+    writeSession(null); state.user = null; state.profile = null; state.pendingAvatar = null; state.profileDraftDirty = false; state.role = 'member'; state.isStaff = false; state.isLeader = false; state.isOwner = false; state.directory = new Map(); state.ranking = new Map(); state.roles = new Map(); state.navigationContext = null; state.adminSection = 'home'; state.pendingReviews = 0; state.authStatus = 'anonymous'; renderAccountState(); ensureOwnerPanel(); window.luxHub.setScreen('home'); toast('SESIÓN CERRADA');
   }
   async function openMember(section = 'home') {
+    await waitForAuth();
     if (!state.user) { openLogin('member'); return; }
     state.navigationContext = 'member';
     window.luxHub.setScreen('member');
@@ -1317,6 +1391,7 @@
     renderNavigation();
   }
   async function openLeader() {
+    await waitForAuth();
     if (!state.user) { openLogin('leader'); return; }
     if (!state.isStaff) { toast('⛔ ESTA CUENTA NO TIENE PERMISOS DE LÍDER'); return; }
     state.navigationContext = 'admin';
@@ -1326,7 +1401,8 @@
   }
   function installStyles() {
     const style = document.createElement('style');
-    style.textContent = `.lux-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;margin-top:18px;border:1px solid #ffffff35;border-radius:12px;background:#ffffff;color:#1a1a1a;font:700 1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.2px;cursor:pointer;box-shadow:0 4px 20px #00000060;transition:transform .15s,box-shadow .15s}.lux-google-btn:hover{background:#f0f0f0;transform:translateY(-2px);box-shadow:0 8px 28px #00000080}.lux-google-btn:active{transform:translateY(0)}.lux-google-btn svg{flex-shrink:0}.lux-google-btn--big{padding:16px;font-size:1.05rem;letter-spacing:1.8px;border-radius:14px}.lux-auth-note{margin-top:14px;color:#6e6875;font-size:.65rem;line-height:1.5;text-align:center}.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
+    style.textContent = `.lux-login-checking{text-align:center}.lux-auth-spinner{display:block;width:46px;height:46px;margin:2px auto 17px;border:4px solid #ffffff18;border-top-color:#ff3b24;border-radius:50%;animation:lux-auth-spin .75s linear infinite}.lux-login-checking p{max-width:310px;margin:9px auto 0}.lux-login-checking .hub-kicker{display:block}@keyframes lux-auth-spin{to{transform:rotate(360deg)}}`;
+    style.textContent += `.lux-google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;margin-top:18px;border:1px solid #ffffff35;border-radius:12px;background:#ffffff;color:#1a1a1a;font:700 1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.2px;cursor:pointer;box-shadow:0 4px 20px #00000060;transition:transform .15s,box-shadow .15s}.lux-google-btn:hover{background:#f0f0f0;transform:translateY(-2px);box-shadow:0 8px 28px #00000080}.lux-google-btn:active{transform:translateY(0)}.lux-google-btn svg{flex-shrink:0}.lux-google-btn--big{padding:16px;font-size:1.05rem;letter-spacing:1.8px;border-radius:14px}.lux-auth-note{margin-top:14px;color:#6e6875;font-size:.65rem;line-height:1.5;text-align:center}.lux-auth-switch,.lux-auth-resend{width:100%;margin-top:9px;border:1px solid #ffffff2b;border-radius:9px;background:#ffffff08;color:#ddd;padding:9px;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}.lux-auth-resend{color:#ffb29f;border-color:#ff674855;background:#ff22000d}.lux-review-queue{margin-top:15px}.lux-review-queue>p{margin:0 0 12px;color:#aaa4aa;font-size:.78rem}.lux-review-row{display:grid;grid-template-columns:82px 1fr auto;gap:10px;align-items:center;margin-top:8px;padding:8px;border:1px solid #ffffff18;border-radius:10px;background:#09090d}.lux-review-row img{width:82px;height:58px;border-radius:6px;object-fit:cover}.lux-review-row div{display:grid;gap:4px}.lux-review-row strong{font:1.15rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}.lux-review-row small{color:#aaa;font-size:.65rem}.lux-review-row span{display:flex;gap:5px}.lux-review-row button,.hub-modal-gallery button,.lux-download-avatar{border:1px solid #ff664d77;border-radius:6px;background:#ff220018;color:#ffab9b;padding:6px 7px;font:.78rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.5px;cursor:pointer}.lux-review-row button:first-child,.hub-modal-gallery button:first-child{border:0;background:#bd2f18;color:#fff}.lux-download-avatar{margin-top:8px}.hub-evidence small{display:block;padding:0 7px 7px;color:#ffab9b;font-size:.62rem}@media(max-width:620px){.lux-review-row{grid-template-columns:65px 1fr}.lux-review-row img{width:65px;height:51px}.lux-review-row span{grid-column:2;justify-content:flex-start}.lux-review-row button{flex:1}}`;
     style.textContent += `.lux-evidence-thumb{position:relative;display:block;width:100%;overflow:hidden;border:0!important;border-radius:8px;background:#050507!important;padding:0!important;cursor:zoom-in}.lux-evidence-thumb img{display:block;width:100%!important;height:130px;object-fit:cover;transition:transform .2s}.lux-evidence-thumb:hover img{transform:scale(1.035)}.lux-evidence-thumb>span{position:absolute!important;right:6px;bottom:6px;display:block!important;padding:4px 7px;border:1px solid #ffffff35;border-radius:999px;background:#000c;color:#fff;font:700 .55rem 'Segoe UI',sans-serif;letter-spacing:.7px}.lux-review-row>.lux-evidence-thumb{width:82px}.lux-review-row>.lux-evidence-thumb img{height:58px}.hub-modal-gallery .lux-evidence-thumb img{height:150px}.lux-evidence-viewer[hidden]{display:none!important}.lux-evidence-viewer{position:fixed;z-index:100010;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:12px;background:#030306f5;backdrop-filter:blur(12px);color:#fff}.lux-evidence-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;width:min(1180px,100%);margin:auto;padding:7px 0 10px}.lux-evidence-toolbar strong{overflow:hidden;font:1.2rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1.5px;text-overflow:ellipsis;white-space:nowrap}.lux-evidence-toolbar span{display:flex;gap:6px}.lux-evidence-toolbar button{min-width:42px;height:40px;border:1px solid #ffffff33;border-radius:8px;background:#15151b;color:#fff;font:1.1rem 'Bebas Neue',Impact,sans-serif;cursor:pointer}.lux-evidence-toolbar .lux-evidence-close{border-color:#ff3c2c88;background:#8d160e;font-size:1.55rem}.lux-evidence-stage{width:min(1180px,100%);height:100%;margin:auto;overflow:auto;display:block;border:1px solid #ffffff1f;border-radius:12px;background:#000;text-align:center;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}.lux-evidence-stage img{display:inline-block;width:100%;height:auto;min-height:100%;object-fit:contain;vertical-align:top;transform-origin:top center;touch-action:pan-x pan-y pinch-zoom}.lux-evidence-viewer>small{padding:9px 4px 2px;color:#a8a2ab;text-align:center;font-size:.68rem}.lux-player-hero{padding:18px;border:1px solid #ff3a2445!important;border-radius:16px!important;background:radial-gradient(circle at 12% 30%,#57130d80,transparent 32%),linear-gradient(135deg,#1b1117,#0c0c11)!important}.lux-player-avatar-ring{display:grid;place-items:center;padding:5px;border:1px solid #ff816f55;border-radius:50%;box-shadow:0 0 30px #ff220033}.lux-player-history-title{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-top:22px}.lux-player-history-title h3{margin:5px 0 0!important}.lux-player-history-title>small{max-width:250px;color:#948e97;font-size:.66rem;text-align:right}.lux-owner-nav{border-color:#e5b84c88!important;color:#ffdc7c!important}.lux-owner-panel em{color:#ffca55!important}.lux-owner-notice{margin-bottom:14px;padding:12px;border:1px solid #d39b3566;border-radius:10px;background:#c9871112;color:#d8c395;font-size:.73rem;line-height:1.45}.lux-owner-accounts{display:grid;gap:8px}.lux-owner-account{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:11px;padding:12px;border:1px solid #ffffff17;border-radius:12px;background:linear-gradient(145deg,#171219,#0d0d12)}.lux-owner-avatar{width:52px;height:52px;display:grid;place-items:center;border:1px solid #e9b94488;border-radius:50%;object-fit:cover}.lux-owner-account>div{display:grid;gap:3px;min-width:0}.lux-owner-account strong{color:#fff;font:1.3rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px}.lux-owner-account span{overflow:hidden;color:#c5bec8;font-size:.72rem;text-overflow:ellipsis;white-space:nowrap}.lux-owner-account small{color:#9d969f;font-size:.6rem}.lux-owner-account>button{border:1px solid #e8b94b66;border-radius:7px;background:#e8b94b12;color:#ffd36e;padding:8px;font:.9rem 'Bebas Neue',Impact,sans-serif;cursor:pointer}.lux-owner-account>em{color:#817b84;font-size:.65rem;font-style:normal}@media(max-width:620px){.lux-review-row>.lux-evidence-thumb{width:65px}.lux-review-row>.lux-evidence-thumb img{height:51px}.lux-evidence-viewer{padding:6px}.lux-evidence-toolbar strong{font-size:.9rem}.lux-evidence-toolbar button{min-width:36px;height:36px}.lux-evidence-viewer>small{font-size:.58rem}.lux-player-hero{padding:13px!important}.lux-player-avatar-ring .hub-modal-avatar{width:68px;height:68px}.lux-player-history-title{display:block}.lux-player-history-title>small{display:block;margin-top:6px;text-align:left}.lux-owner-account{grid-template-columns:45px minmax(0,1fr)}.lux-owner-avatar{width:45px;height:45px}.lux-owner-account>button,.lux-owner-account>em{grid-column:2;justify-self:start}}`;
     style.textContent += `
       .lux-mode-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -1472,7 +1548,10 @@
     ensureMemberDirectory();
     ensureSimpleExperience();
     window.luxSupabase = { authSubmit, loginWithGoogle, resendConfirmation, toggleSignup, logout, reviewVictory, openMember, openLeader, openRanking, navigateAdmin, renderPublic, renderAdmin, openEvidence, closeEvidence, zoomEvidence, resetEvidenceZoom, downloadOfficialBanner, downloadMyBanner, saveCurrentBanner, showOwnerAccounts, setAccountRole, requestMemberRemoval, closeMemberRemoval, confirmMemberRemoval, openPublicPlayer, showMemberDirectory, renderMemberDirectory, showMyProfile, showMyVictories, showAdminReview, openAdminEditor };
-    hydrateAccount().then(async user => {
+    document.body.classList.add('lux-auth-checking');
+    document.documentElement.dataset.luxAuth = 'checking';
+    renderAccountState();
+    authReadyPromise = hydrateAccount().then(async user => {
       await renderPublic();
       if (user && arrivedFromOAuth) {
         await openMember('home');
@@ -1480,9 +1559,16 @@
         window.luxHub.setScreen('home');
       }
       renderNavigation();
+      return user;
     }).catch(async () => {
+      if (state.authStatus === 'checking') state.authStatus = readSession()?.access_token ? 'unavailable' : 'anonymous';
       await renderPublic();
       window.luxHub.setScreen('home');
+      return null;
+    }).finally(() => {
+      document.body.classList.remove('lux-auth-checking');
+      document.documentElement.dataset.luxAuth = state.authStatus;
+      renderAccountState();
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
