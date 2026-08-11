@@ -15,8 +15,36 @@
   const state = { file:null, hash:'', objectUrl:'', canvas:null, rows:[], members:[], aliases:new Map(), ready:false, busy:false };
   let scriptPromise = null;
 
+  const LOOKALIKE_CHARS = {
+    'Ø':'O','ø':'o','Ł':'L','ł':'l','Đ':'D','đ':'d','Ð':'D','ð':'d','Þ':'TH','þ':'th','Æ':'AE','æ':'ae','Œ':'OE','œ':'oe','ß':'ss',
+    'А':'A','а':'a','В':'B','в':'b','Е':'E','е':'e','К':'K','к':'k','М':'M','м':'m','Н':'H','н':'h','О':'O','о':'o',
+    'Р':'P','р':'p','С':'C','с':'c','Т':'T','т':'t','Х':'X','х':'x','У':'Y','у':'y',
+    'Α':'A','α':'a','Β':'B','β':'b','Ε':'E','ε':'e','Ζ':'Z','Η':'H','η':'h','Ι':'I','ι':'i','Κ':'K','κ':'k','Μ':'M','μ':'m','Ν':'N','ν':'v','Ο':'O','ο':'o','Ρ':'P','ρ':'p','Τ':'T','τ':'t','Χ':'X','χ':'x'
+  };
+  function transliterateName(value) {
+    return [...String(value || '')].map(char => LOOKALIKE_CHARS[char] ?? char).join('');
+  }
   function normalizeName(value) {
-    return String(value || '').normalize('NFKD').replace(/\p{M}/gu, '').toLocaleUpperCase('es').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 80);
+    return transliterateName(value).normalize('NFKD').replace(/\p{M}/gu, '').toLocaleUpperCase('es').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 80);
+  }
+  function nameVariants(value) {
+    const spaced = transliterateName(value).normalize('NFKD').replace(/\p{M}/gu, '').toLocaleUpperCase('es')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/g, ' ');
+    const variants = new Set();
+    const add = candidate => {
+      const normalized = normalizeName(candidate);
+      if (normalized.length >= 2) variants.add(normalized);
+    };
+    add(spaced);
+    add(spaced.replace(/\s+\d{1,3}$/u, ''));
+    const tokens = spaced.split(' ').filter(Boolean);
+    if (tokens.length > 1 && /^(?:LX|LUX|GPA|IAM|TEAM|CLAN)$/u.test(tokens[0])) add(tokens.slice(1).join(' '));
+    [...variants].forEach(candidate => {
+      add(candidate.replace(/\d{1,3}$/u, ''));
+      add(candidate.replace(/^(?:LX|LUX|GPA|IAM|TEAM|CLAN)/u, ''));
+      add(candidate.replace(/^X{1,3}(?=[A-Z])|X{1,3}$/gu, ''));
+    });
+    return [...variants];
   }
   function safeNumber(value) {
     const parsed = Number(String(value ?? '').replace(/[^0-9]/g, ''));
@@ -91,6 +119,31 @@
     canvas.height = Math.max(80, height * 2);
     canvas.getContext('2d').drawImage(source, x, y, width, height, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', .86);
+  }
+  function cropNameLine(source, topRatio, bottomRatio, binary = false) {
+    const rowTop = source.height * topRatio;
+    const rowHeight = source.height * (bottomRatio - topRatio);
+    const x = Math.round(source.width * .135);
+    const y = Math.max(0, Math.round(rowTop + rowHeight * .18));
+    const width = Math.round(source.width * .155);
+    const height = Math.max(18, Math.round(rowHeight * .46));
+    const scale = Math.max(2.5, Math.min(5, 150 / height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(420, Math.round(width * scale));
+    canvas.height = Math.max(105, Math.round(height * scale));
+    const context = canvas.getContext('2d', { alpha:false, willReadFrequently:true });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, x, y, width, height, 0, 0, canvas.width, canvas.height);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < image.data.length; index += 4) {
+      const gray = image.data[index] * .299 + image.data[index + 1] * .587 + image.data[index + 2] * .114;
+      const contrasted = Math.max(0, Math.min(255, (gray - 112) * 2.25 + 130));
+      const value = binary ? (gray >= 118 ? 0 : 255) : 255 - contrasted;
+      image.data[index] = image.data[index + 1] = image.data[index + 2] = value;
+    }
+    context.putImageData(image, 0, 0);
+    return canvas;
   }
   function cropMetrics(source) {
     const x = Math.round(source.width * .30), y = Math.round(source.height * .08);
@@ -189,8 +242,7 @@
       .filter((token, index, all) => index === 0 || token.toLocaleUpperCase('es') !== all[index - 1].toLocaleUpperCase('es'));
     return tokens.join(' ').replace(/\s+/g, ' ').replace(/\bN[vw][l1]?\.?\s*\d+.*$/i, '').trim().slice(0, 80);
   }
-  function similarity(first, second) {
-    const a = normalizeName(first), b = normalizeName(second);
+  function editSimilarity(a, b) {
     if (!a || !b) return 0;
     const previous = Array(b.length + 1).fill(0).map((_, index) => index);
     for (let i = 1; i <= a.length; i += 1) {
@@ -203,15 +255,41 @@
     }
     return 1 - previous[b.length] / Math.max(a.length, b.length);
   }
+  function similarity(first, second) {
+    const firstVariants = nameVariants(first), secondVariants = nameVariants(second);
+    let best = 0;
+    firstVariants.forEach(a => secondVariants.forEach(b => {
+      if (a === b) { best = 1; return; }
+      const shorter = a.length <= b.length ? a : b;
+      const longer = a.length > b.length ? a : b;
+      let score = editSimilarity(a, b);
+      if (shorter.length >= 4 && longer.includes(shorter)) score = Math.max(score, .78 + .18 * (shorter.length / longer.length));
+      best = Math.max(best, score);
+    }));
+    return best;
+  }
+  function bestCandidates(row) {
+    const candidates = new Map();
+    const add = (playerId, displayName, score, source) => {
+      if (!playerId) return;
+      const current = candidates.get(playerId);
+      if (!current || score > current.score) candidates.set(playerId, { playerId, displayName, score, source });
+    };
+    [...new Set(state.aliases.values())].forEach(alias => add(alias.player_id, alias.game_name, similarity(row.gameName, alias.game_name || alias.alias_key), 'alias'));
+    state.members.forEach(member => add(memberId(member), memberName(member), similarity(row.gameName, memberName(member)), 'profile'));
+    return [...candidates.values()].sort((a, b) => b.score - a.score);
+  }
   function matchRow(row) {
-    const key = normalizeName(row.gameName);
     if (/^Jugador\s+\d+$/i.test(String(row.gameName || '').trim())) return { ...row, playerId:'', matchedBy:'', suggestionId:'' };
-    const alias = state.aliases.get(key);
+    const variants = nameVariants(row.gameName);
+    const alias = variants.map(key => state.aliases.get(key)).find(Boolean);
     if (alias) return { ...row, playerId:alias.player_id, matchedBy:'alias', suggestionId:'' };
-    const exact = state.members.find(member => normalizeName(memberName(member)) === key);
+    const exact = state.members.find(member => nameVariants(memberName(member)).some(key => variants.includes(key)));
     if (exact) return { ...row, playerId:memberId(exact), matchedBy:'profile', suggestionId:'' };
-    const suggested = state.members.map(member => ({ member, score:similarity(row.gameName, memberName(member)) })).sort((a, b) => b.score - a.score)[0];
-    return { ...row, playerId:'', matchedBy:'', suggestionId:suggested?.score >= .55 ? memberId(suggested.member) : '' };
+    const candidates = bestCandidates(row), best = candidates[0], second = candidates[1];
+    const safeAutoMatch = best?.score >= .96 && best.score - (second?.score || 0) >= .08;
+    if (safeAutoMatch) return { ...row, playerId:best.playerId, matchedBy:best.source, suggestionId:'', matchScore:best.score };
+    return { ...row, playerId:'', matchedBy:'', suggestionId:best?.score >= .50 ? best.playerId : '', matchScore:best?.score || 0 };
   }
   function extractRows(words, canvas) {
     const width = canvas.width, height = canvas.height;
@@ -221,7 +299,7 @@
       const next = groups[index + 1]?.y ?? Math.min(height, group.y + height * .08);
       const top = index ? (previous + group.y) / 2 : Math.max(height * .07, group.y - (next - group.y) / 2);
       const bottom = index < groups.length - 1 ? (group.y + next) / 2 : Math.min(height, group.y + (group.y - previous) / 2);
-      return matchRow({
+      return {
         id:crypto.randomUUID?.() || `${Date.now()}-${index}`,
         gameName:extractName(words, group.y, width, height) || `Jugador ${index + 1}`,
         gloryWeek:closestMetric(group, .407, width),
@@ -229,9 +307,51 @@
         platesWeek:closestMetric(group, .648, width),
         platesTotal:closestMetric(group, .758, width),
         crop:cropRow(state.canvas, top / height, bottom / height),
-        confidence:Math.round(group.words.reduce((sum, word) => sum + Number(word.confidence || 0), 0) / group.words.length)
-      });
+        confidence:Math.round(group.words.reduce((sum, word) => sum + Number(word.confidence || 0), 0) / Math.max(1, group.words.length)),
+        topRatio:top / height,
+        bottomRatio:bottom / height
+      };
     });
+  }
+  function cleanRecognizedName(value) {
+    return String(value || '')
+      .replace(/[|!{}\[\]"'`~]+/g, ' ')
+      .replace(/[^\p{L}\p{N}_ .\-\u00d7]+/gu, ' ')
+      .replace(/\b(?:N[VW]L?|LVL)\.?\s*\d+.*$/iu, '')
+      .replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+  async function recognizeRowNames(worker, Tesseract, rows) {
+    await worker.setParameters({
+      tessedit_char_whitelist:'',
+      tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_LINE || '7',
+      preserve_interword_spaces:'1',
+      user_defined_dpi:'300'
+    });
+    for (let index = 0; index < rows.length; index += 1) {
+      state.ocrStage = { start:72 + (index / rows.length) * 18, span:18 / rows.length, label:`Leyendo nombre ${index + 1} de ${rows.length}` };
+      progress(72 + Math.round(((index + 1) / rows.length) * 18), `Leyendo nombre ${index + 1} de ${rows.length}\u2026`);
+      try {
+        const candidates = [{ name:rows[index].gameName, confidence:Math.max(5, rows[index].confidence / 3) }];
+        for (const binary of [false, true]) {
+          const line = cropNameLine(state.canvas, rows[index].topRatio, rows[index].bottomRatio, binary);
+          const result = await worker.recognize(line, {}, { blocks:true, text:true });
+          const candidate = cleanRecognizedName(result.data?.text || collectWords(result.data).map(word => word.text).join(' '));
+          if (normalizeName(candidate).length >= 3 && !/^(?:MIEMBROS|ESTADO|TOTAL|SEMANA)$/i.test(candidate)) {
+            candidates.push({ name:candidate, confidence:Number(result.data?.confidence || 0) });
+          }
+        }
+        const scored = candidates.map(candidate => {
+          const knownScore = bestCandidates({ gameName:candidate.name })[0]?.score || 0;
+          const cleanLength = Math.min(18, normalizeName(candidate.name).length);
+          return { ...candidate, score:knownScore * 100 + candidate.confidence * .30 + cleanLength * .35 };
+        }).sort((a, b) => b.score - a.score);
+        rows[index].gameName = scored[0]?.name || rows[index].gameName;
+        rows[index].nameConfidence = Math.round(Number(scored[0]?.confidence || 0));
+      } catch (_) {
+        rows[index].nameConfidence = 0;
+      }
+    }
+    return rows.map(matchRow);
   }
 
   function memberOptions(row) {
@@ -269,6 +389,10 @@
     if (['gloryWeek','gloryTotal','platesWeek','platesTotal'].includes(field)) row[field] = safeNumber(event.target.value);
     else row[field] = event.target.value;
     if (field === 'playerId') { row.matchedBy = row.playerId ? 'manual' : ''; renderRows(); }
+    else if (field === 'gameName' && event.type === 'change' && row.matchedBy !== 'manual') {
+      Object.assign(row, matchRow({ ...row, playerId:'', matchedBy:'', suggestionId:'' }));
+      renderRows();
+    }
   }
   function removeRow(event) {
     const id = event.target.closest('[data-remove]')?.dataset?.remove;
@@ -299,7 +423,10 @@
     try {
       const context = await api.getContext();
       setDirectory(context.members);
-      state.aliases = new Map((context.aliases || []).map(alias => [alias.alias_key, alias]));
+      state.aliases = new Map();
+      (context.aliases || []).forEach(alias => {
+        [alias.alias_key, ...nameVariants(alias.game_name)].filter(Boolean).forEach(key => state.aliases.set(key, alias));
+      });
       state.ready = true;
       const today = localDate();
       if ($('lux-activity-date')) { $('lux-activity-date').max = today; $('lux-activity-date').value ||= today; }
@@ -327,14 +454,19 @@
       state.canvas = await loadImage(file);
       const prepared = ocrCanvas(state.canvas);
       const Tesseract = await loadTesseract();
+      state.ocrStage = { start:20, span:36, label:'Leyendo la tabla' };
       worker = await Tesseract.createWorker('eng', 1, {
         logger: message => {
-          if (message.status === 'recognizing text') progress(20 + Math.round((message.progress || 0) * 68), `Leyendo filas y números… ${Math.round((message.progress || 0) * 100)}%`);
+          if (message.status === 'recognizing text') {
+            const stage = state.ocrStage || { start:20, span:60, label:'Leyendo la captura' };
+            progress(stage.start + Math.round((message.progress || 0) * stage.span), `${stage.label}\u2026 ${Math.round((message.progress || 0) * 100)}%`);
+          }
         }
       });
       const result = await worker.recognize(prepared, {}, { blocks:true, text:true });
       const words = collectWords(result.data);
-      progress(90, 'Comprobando los cuatro contadores…');
+      state.ocrStage = { start:58, span:13, label:'Comprobando los cuatro contadores' };
+      progress(58, 'Comprobando los cuatro contadores…');
       const metricsCrop = cropMetrics(prepared);
       await worker.setParameters({
         tessedit_char_whitelist:'0123456789',
@@ -349,7 +481,8 @@
           y0:word.bbox.y0 + metricsCrop.offsetY, y1:word.bbox.y1 + metricsCrop.offsetY
         }
       }));
-      state.rows = extractRows(words.filter(word => metricValue(word.text) === null).concat(metricWords.length >= 4 ? metricWords : words), prepared);
+      const extractedRows = extractRows(words.filter(word => metricValue(word.text) === null).concat(metricWords.length >= 4 ? metricWords : words), prepared);
+      state.rows = extractedRows.length ? await recognizeRowNames(worker, Tesseract, extractedRows) : [];
       if (!state.rows.length) {
         addRow();
         toast('ℹ️ NO SE LEYERON LAS FILAS. PUEDES COMPLETARLAS MANUALMENTE');
