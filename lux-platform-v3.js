@@ -71,20 +71,27 @@
     ensurePanels();
     const page = document.querySelector('#hub-member .hub-page');
     if (!page || !panel) return;
-    [...page.children].forEach(child => { child.hidden = child.id !== 'lux-member-tabs' && child !== panel; });
-    panel.hidden = false;
+    if (!panel.childElementCount) panel.innerHTML = '<div class="lux-v3-loading" aria-live="polite"><i></i><span>Preparando esta sección…</span></div>';
+    if (!core().showPageChildren?.(page,panel,['lux-member-tabs'])) {
+      [...page.children].forEach(child => { child.hidden = child.id !== 'lux-member-tabs' && child !== panel; });
+      panel.hidden = false;
+    }
     $('lux-member-tabs')?.querySelectorAll('[data-member-section]').forEach(button => button.classList.toggle('active', button.dataset.memberSection === section));
-    window.scrollTo({ top:0, behavior:'smooth' });
+    core().revealActiveTab?.($('lux-member-tabs'));
+    core().scrollTopNow?.();
   }
 
   function showOnlyAdmin(panel, section) {
     ensurePanels();
     const page = document.querySelector('#hub-admin .hub-page');
     if (!page || !panel) return;
-    [...page.children].forEach(child => { child.hidden = child.id !== 'lux-admin-tabs' && child !== panel; });
-    panel.hidden = false;
+    if (!panel.childElementCount) panel.innerHTML = '<div class="lux-v3-loading" aria-live="polite"><i></i><span>Preparando esta sección…</span></div>';
+    if (!core().showPageChildren?.(page,panel,['lux-admin-tabs'])) {
+      [...page.children].forEach(child => { child.hidden = child.id !== 'lux-admin-tabs' && child !== panel; });
+      panel.hidden = false;
+    }
     core().setAdminSection(section);
-    window.scrollTo({ top:0, behavior:'smooth' });
+    core().scrollTopNow?.();
   }
 
   function setMemberTabsLocked(locked) {
@@ -512,7 +519,8 @@
   async function renderPeriodRanking(value='all'){
     const list=$('lux-public-ranking');if(!list)return;
     const [period,seasonId]=String(value||'all').split(':');
-    list.innerHTML='<p class="hub-empty">Calculando clasificación…</p>';
+    if(!list.childElementCount)list.innerHTML='<p class="hub-empty lux-loading-placeholder">Calculando clasificación…</p>';
+    list.classList.add('lux-list-refreshing');list.setAttribute('aria-busy','true');
     try{
       const rows=await core().rpc('get_period_ranking',{p_period:period==='season'?'season':period,p_season_id:seasonId||null},false);
       if($('lux-public-members'))$('lux-public-members').textContent=rows.length;
@@ -520,29 +528,47 @@
       if($('lux-public-total'))$('lux-public-total').textContent=rows.reduce((total,row)=>total+Number(row.victories_total||0),0);
       list.innerHTML=rows.length?rows.map((row,index)=>`<button type="button" class="lux-public-row lux-period-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index+1}</i>${avatar(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingStatsLine(row)}</small></div><em>${Number(row.performance_score||0)} pts</em></button>`).join(''):'<p class="hub-empty">No hay resultados aprobados en este periodo.</p>';
     }catch(_){await core().renderPublic();await ensureRankingFilters();}
+    finally{list.classList.remove('lux-list-refreshing');list.removeAttribute('aria-busy');}
   }
 
   async function showMemberSection(section){
     if(!appState().user){window.luxAccess?.openLogin?.('member');return true;}
-    window.luxHub?.setScreen?.('member');
-    appState().navigationContext='member';
-    if(await guardMember(section))return true;
-    ensurePanels();
-    if(section==='matches'){showOnlyMember($('lux-v3-member-matches'),'matches');await renderMemberMatches();return true;}
-    if(section==='events'){showOnlyMember($('lux-v3-member-events'),'events');await renderMemberEvents();return true;}
-    if(section==='announcements'){showOnlyMember($('lux-v3-member-announcements'),'announcements');await renderAnnouncements('lux-v3-member-announcements',false);return true;}
-    return false;
+    const navigationToken=core().beginNavigation?.(`member:${section}`);
+    let handled=false;
+    try{
+      window.luxHub?.setScreen?.('member');
+      appState().navigationContext='member';
+      core().renderNavigation?.();
+      if(await guardMember(section)){handled=true;return true;}
+      ensurePanels();
+      if(section==='matches'){const panel=$('lux-v3-member-matches');showOnlyMember(panel,'matches');await renderMemberMatches();handled=true;return true;}
+      if(section==='events'){const panel=$('lux-v3-member-events');showOnlyMember(panel,'events');await renderMemberEvents();handled=true;return true;}
+      if(section==='announcements'){const panel=$('lux-v3-member-announcements');showOnlyMember(panel,'announcements');await renderAnnouncements('lux-v3-member-announcements',false);handled=true;return true;}
+      return false;
+    }finally{
+      const page=document.querySelector('#hub-member .hub-page');
+      const visible=[...(page?.children||[])].find(child=>!child.hidden&&child.id!=='lux-member-tabs');
+      if(navigationToken!=null)core().endNavigation?.(navigationToken,visible);
+      if(!handled)core().animateView?.(visible);
+    }
   }
 
   async function navigateAdmin(section){
     if(!appState().isStaff)return true;
-    window.luxHub?.setScreen?.('admin');appState().navigationContext='admin';ensurePanels();core().renderNavigation();
-    if(section==='requests'){showOnlyAdmin($('lux-v3-admin-requests'),'requests');await renderAdminRequests();return true;}
-    if(section==='matches'){showOnlyAdmin($('lux-v3-admin-matches'),'matches');await renderAdminMatches();return true;}
-    if(section==='events'){showOnlyAdmin($('lux-v3-admin-events'),'events');await renderAdminEvents();return true;}
-    if(section==='announcements'){showOnlyAdmin($('lux-v3-admin-announcements'),'announcements');await renderAnnouncements('lux-v3-admin-announcements',true);return true;}
-    if(section==='operations'&&appState().isOwner){showOnlyAdmin($('lux-v3-admin-operations'),'operations');await renderOperations();return true;}
-    return false;
+    const navigationToken=core().beginNavigation?.(`admin:${section}`);
+    try{
+      window.luxHub?.setScreen?.('admin');appState().navigationContext='admin';ensurePanels();core().renderNavigation();
+      if(section==='requests'){showOnlyAdmin($('lux-v3-admin-requests'),'requests');await renderAdminRequests();return true;}
+      if(section==='matches'){showOnlyAdmin($('lux-v3-admin-matches'),'matches');await renderAdminMatches();return true;}
+      if(section==='events'){showOnlyAdmin($('lux-v3-admin-events'),'events');await renderAdminEvents();return true;}
+      if(section==='announcements'){showOnlyAdmin($('lux-v3-admin-announcements'),'announcements');await renderAnnouncements('lux-v3-admin-announcements',true);return true;}
+      if(section==='operations'&&appState().isOwner){showOnlyAdmin($('lux-v3-admin-operations'),'operations');await renderOperations();return true;}
+      return false;
+    }finally{
+      const page=document.querySelector('#hub-admin .hub-page');
+      const visible=[...(page?.children||[])].find(child=>!child.hidden&&child.id!=='lux-admin-tabs');
+      if(navigationToken!=null)core().endNavigation?.(navigationToken,visible);
+    }
   }
 
   async function openDeepLinkedProfile(){
