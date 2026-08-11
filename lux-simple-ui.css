@@ -52,11 +52,11 @@
 
 .lux-member-tabs {
   position: sticky;
-  z-index: 90;
+  z-index: 95;
   top: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(105px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(var(--lux-member-tab-count, 7), minmax(112px, 1fr));
+  gap: 7px;
   margin: -22px 0 24px;
   padding: 8px;
   overflow-x: auto;
@@ -75,21 +75,22 @@
 }
 
 .lux-member-tabs button {
-  min-height: 58px;
+  position: relative;
+  min-height: 62px;
   border: 1px solid transparent;
   border-radius: 11px;
   background: transparent;
   color: #aaa4aa;
-  padding: 8px 6px;
-  font: 1rem 'Bebas Neue', Impact, sans-serif;
-  letter-spacing: .8px;
+  padding: 7px 6px;
+  font: .92rem 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: .65px;
   cursor: pointer;
 }
 
 .lux-member-tabs button span {
   display: block;
   margin-bottom: 3px;
-  font: 1.1rem 'Segoe UI Emoji', sans-serif;
+  font: 1.08rem 'Segoe UI Emoji', sans-serif;
 }
 
 .lux-member-tabs button:hover,
@@ -625,6 +626,7 @@
   }
 
   .lux-member-tabs {
+    grid-template-columns: repeat(var(--lux-member-tab-count, 7), minmax(105px, 1fr));
     gap: 4px;
     margin: -19px -2px 20px;
     padding: 5px;
@@ -632,14 +634,14 @@
   }
 
   .lux-member-tabs button {
-    min-height: 55px;
-    padding: 6px 2px;
-    font-size: .73rem;
-    letter-spacing: .2px;
+    min-height: 56px;
+    padding: 5px 3px;
+    font-size: .76rem;
+    letter-spacing: .3px;
   }
 
   .lux-member-tabs button span {
-    font-size: 1rem;
+    font-size: .96rem;
   }
 
   .lux-admin-tabs {
