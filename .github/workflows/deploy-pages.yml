@@ -26,6 +26,7 @@ jobs:
           node --check prototipo-clan-hub.js
           node --check prototipo-accesos.js
           node --check prototipo-placas.js
+          node --check prototipo-placas-ocr.js
           node --check prototipo-supabase.js
       - name: Evitar claves privadas en el sitio
         run: |
