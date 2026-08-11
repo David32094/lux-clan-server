@@ -38,6 +38,19 @@ test('Google abre el proveedor con selector de cuenta', async ({ page }) => {
   expect(new URL(page.url()).searchParams.get('prompt')).toBe('select_account');
 });
 
+test('la clasificación vuelve al inicio sin mostrar la interfaz antigua', async ({ page }) => {
+  await mockSupabase(page, { profile:null });
+  await page.goto('/LUX_CLAN_EDITOR_BY.DAVID.XIT.html');
+  await expect.poll(() => page.evaluate(() => typeof window.luxSupabase?.openRanking)).toBe('function');
+  await page.evaluate(() => window.luxSupabase.openRanking());
+  await expect(page.locator('body')).toHaveClass(/lux-hub-public/);
+  await expect(page.locator('#lux-public-screen')).toBeVisible();
+  await page.locator('#lux-public-screen .lux-nav-brand').click();
+  await expect(page.locator('body')).toHaveClass(/lux-hub-home/);
+  await expect(page.locator('#hub-home')).toBeVisible();
+  await expect(page.locator('#lux-public-screen')).toBeHidden();
+});
+
 test('la sesión de Google persiste después de recargar', async ({ page }) => {
   await mockSupabase(page);
   await page.goto(oauthUrl());
@@ -65,6 +78,30 @@ test('los permisos de owner muestran operaciones privadas', async ({ page }) => 
   await page.evaluate(() => window.luxSupabase.openLeader());
   await expect(page.getByText(/administración/i).first()).toBeVisible();
   await expect(page.getByRole('button', { name:/cuentas|operaciones/i }).first()).toBeVisible();
+});
+
+test('la cabecera permanece estable y el último cambio de pestaña gana', async ({ page }) => {
+  await mockSupabase(page, { role:'owner' });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await expect(page.locator('#lux-admin-tabs')).toBeVisible();
+
+  await page.evaluate(() => {
+    document.querySelector('#hub-admin .hub-nav').dataset.stabilityMarker = 'nav';
+    document.querySelector('#lux-admin-tabs').dataset.stabilityMarker = 'tabs';
+    void window.luxSupabase.navigateAdmin('requests');
+    void window.luxSupabase.navigateAdmin('matches');
+    void window.luxSupabase.navigateAdmin('directory');
+  });
+
+  await expect(page.locator('#lux-admin-tabs [data-admin-section="directory"]')).toHaveClass(/active/);
+  await expect(page.locator('#hub-member-directory')).toBeVisible();
+  await expect(page.locator('body')).not.toHaveClass(/lux-navigation-busy/);
+  expect(await page.locator('#hub-admin .hub-nav').getAttribute('data-stability-marker')).toBe('nav');
+  expect(await page.locator('#lux-admin-tabs').getAttribute('data-stability-marker')).toBe('tabs');
+  expect(await page.evaluate(() => [...document.querySelector('#hub-admin .hub-page').children]
+    .filter(child => child.id !== 'lux-admin-tabs' && !child.hidden).length)).toBe(1);
 });
 
 test('victorias y partidos se envían a RPC segura', async ({ page }) => {

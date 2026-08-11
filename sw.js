@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v51';
+const CACHE_NAME = 'lux-clan-editor-offline-v52';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
