@@ -104,6 +104,29 @@ test('la cabecera permanece estable y el último cambio de pestaña gana', async
     .filter(child => child.id !== 'lux-admin-tabs' && !child.hidden).length)).toBe(1);
 });
 
+test('integrante y administrador usan una cabecera de pestañas con la misma altura', async ({ page }) => {
+  await mockSupabase(page, { role:'owner' });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openMember('home'));
+  await expect(page.locator('#lux-member-tabs')).toBeVisible();
+  const member = await page.locator('#lux-member-tabs').evaluate(tabs => ({
+    height:tabs.getBoundingClientRect().height,
+    rows:new Set([...tabs.querySelectorAll('button')].map(button => Math.round(button.getBoundingClientRect().top))).size
+  }));
+
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await expect(page.locator('#lux-admin-tabs')).toBeVisible();
+  const admin = await page.locator('#lux-admin-tabs').evaluate(tabs => ({
+    height:tabs.getBoundingClientRect().height,
+    rows:new Set([...tabs.querySelectorAll('button')].map(button => Math.round(button.getBoundingClientRect().top))).size
+  }));
+
+  expect(member.rows).toBe(1);
+  expect(admin.rows).toBe(1);
+  expect(Math.abs(member.height - admin.height)).toBeLessThanOrEqual(1);
+});
+
 test('victorias y partidos se envían a RPC segura', async ({ page }) => {
   let secureRpc = false;
   await mockSupabase(page);

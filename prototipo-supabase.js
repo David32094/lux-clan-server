@@ -1929,8 +1929,10 @@
     document.body.classList.add('lux-auth-checking');
     document.documentElement.dataset.luxAuth = 'checking';
     renderAccountState();
+    const authNavigationSerial = state.navigationSerial;
     authReadyPromise = hydrateAccount().then(async user => {
       await renderPublic();
+      if (state.navigationSerial !== authNavigationSerial) return user;
       if (user && arrivedFromOAuth) {
         await openMember('home');
       } else {
@@ -1941,7 +1943,7 @@
     }).catch(async () => {
       if (state.authStatus === 'checking') state.authStatus = readSession()?.access_token ? 'unavailable' : 'anonymous';
       await renderPublic();
-      window.luxHub.setScreen('home');
+      if (state.navigationSerial === authNavigationSerial) window.luxHub.setScreen('home');
       return null;
     }).finally(() => {
       document.body.classList.remove('lux-auth-checking');
