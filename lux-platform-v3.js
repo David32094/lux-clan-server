@@ -15,7 +15,10 @@
   const activeStatuses = new Set(['active','trial','reserve']);
   const gameRoles = ['','IGL','Rusher','Soporte','Francotirador','Flexible','Suplente'];
   const roleOptions = selected => gameRoles.map(role => `<option value="${esc(role)}"${role === (selected || '') ? ' selected' : ''}>${role || 'SIN DEFINIR'}</option>`).join('');
-  const state = { core:null, selectedPlayers:new Set(), notificationTimer:null, currentSharePlayer:null, backupBusy:false };
+  const state = {
+    core:null, selectedPlayers:new Set(), notificationTimer:null, currentSharePlayer:null, backupBusy:false,
+    matchAliases:[], matchDetected:new Map(), matchUnmatched:[], matchOcrResult:null, matchPreviewUrl:'', pendingMatches:new Map(), selectedMatches:new Set()
+  };
 
   function core() { return state.core || window.luxSupabase?._core; }
   function appState() { return core()?.state || {}; }
@@ -161,18 +164,85 @@
     return rows.sort((a,b) => profileName(a).localeCompare(profileName(b),'es'));
   }
 
+  function memberOptions(selected='') {
+    return `<option value="">NO ES DEL CLAN / IGNORAR</option>${currentRoster().map(row => {
+      const id=profileId(row);return `<option value="${esc(id)}"${id===selected?' selected':''}>${esc(profileName(row))}</option>`;
+    }).join('')}`;
+  }
+
+  function setMatchOcrProgress(percent,message) {
+    const progress=$('lux-match-ocr-progress');if(!progress)return;
+    progress.hidden=false;progress.style.setProperty('--match-ocr-progress',`${Math.max(4,Math.min(100,Number(percent)||0))}%`);
+    const label=progress.querySelector('span');if(label)label.textContent=message;
+  }
+
+  function previewMatchFile() {
+    const file=$('lux-match-file')?.files?.[0],preview=$('lux-match-preview');
+    if(state.matchPreviewUrl){URL.revokeObjectURL(state.matchPreviewUrl);state.matchPreviewUrl='';}
+    state.matchOcrResult=null;state.matchDetected.clear();state.matchUnmatched=[];
+    if(!file||!preview){if(preview)preview.hidden=true;return;}
+    state.matchPreviewUrl=URL.createObjectURL(file);
+    preview.innerHTML=`<img src="${esc(state.matchPreviewUrl)}" alt="Captura que se enviará como evidencia"/><div><strong>CAPTURA LISTA</strong><small>La imagen original será la prueba. El lector solo prepara un borrador que puedes corregir.</small></div>`;
+    preview.hidden=false;
+    const progress=$('lux-match-ocr-progress');if(progress)progress.hidden=true;
+    renderMatchOcrSummary();renderParticipantInputs();
+  }
+
+  function renderMatchOcrSummary() {
+    const target=$('lux-match-ocr-summary');if(!target)return;
+    const result=state.matchOcrResult;
+    if(!result){target.innerHTML='<p class="lux-v3-empty compact">El análisis es opcional. Si no lo usas, solo envía la captura y el modo; la líder podrá corregir lo demás.</p>';return;}
+    const matched=[...state.matchDetected.entries()].map(([id,row])=>{const member=currentRoster().find(item=>profileId(item)===id)||{display_name:'Integrante'};return `<article class="lux-ocr-person is-matched">${avatar(member)}<div><strong>${esc(profileName(member))}</strong><small>Leído como ${esc(row.detectedName||row.gameName||profileName(member))} · ${Number(row.confidence||0)}% confianza${row.confirmed?` · ${row.kills}/${row.deaths}/${row.assists} · ${row.damage} daño`:' · estadísticas opcionales'}</small></div><b>✓</b></article>`;}).join('');
+    const unmatched=state.matchUnmatched.map((row,index)=>`<article class="lux-ocr-person is-unmatched"><span class="lux-v3-row-avatar">?</span><div><strong>${esc(row.gameName||'Nombre no legible')}</strong><small>${row.confirmed?`${row.kills}/${row.deaths}/${row.assists} · ${row.damage} daño · `:''}${Number(row.confidence||0)}% confianza</small><label>¿QUÉ INTEGRANTE ES?<select onchange="window.luxPlatformV3.assignMatchOcrPlayer(${index},this.value)">${memberOptions(row.suggestionId||'')}</select></label></div><button type="button" onclick="window.luxPlatformV3.ignoreMatchOcrPlayer(${index})">IGNORAR</button></article>`).join('');
+    target.innerHTML=`<div class="lux-ocr-result-head"><span class="lux-v3-status ${result.confidence>=65?'approved':'pending'}">OCR ${Number(result.confidence||0)}%</span><p>Comprueba los datos marcados. Nada se suma hasta que una líder apruebe la captura.</p></div>${matched||'<p class="lux-v3-empty compact">No se reconoció automáticamente a otro integrante. Tu cuenta permanece seleccionada.</p>'}${unmatched?`<h4>NOMBRES POR CONFIRMAR</h4>${unmatched}`:''}`;
+  }
+
+  function assignMatchOcrPlayer(index,playerId) {
+    const row=state.matchUnmatched[index];if(!row)return;
+    row.suggestionId=playerId;
+    if(playerId){
+      if(state.selectedPlayers.size>=4&&!state.selectedPlayers.has(playerId)){toast('⚠️ EL PARTIDO SOLO PUEDE TENER 4 INTEGRANTES DEL CLAN');renderMatchOcrSummary();return;}
+      state.matchDetected.set(playerId,{...row,playerId,detectedName:row.gameName,matchedBy:'manual'});state.selectedPlayers.add(playerId);state.matchUnmatched.splice(index,1);
+    }
+    renderMatchOcrSummary();renderParticipantInputs();
+  }
+
+  function ignoreMatchOcrPlayer(index){state.matchUnmatched.splice(index,1);renderMatchOcrSummary();}
+
+  async function analyzeMatchCapture() {
+    const file=$('lux-match-file')?.files?.[0],button=$('lux-analyze-match');
+    if(!core().isImage(file,8*1024*1024)){toast('⚠️ USA JPG, PNG O WEBP DE HASTA 8 MB');return;}
+    if(!window.luxMatchOCR?.analyze){toast('⚠️ EL LECTOR VISUAL NO ESTÁ DISPONIBLE');return;}
+    if(button){button.disabled=true;button.textContent='LEYENDO CAPTURA…';}
+    try{
+      if(!state.matchAliases.length)state.matchAliases=await core().rpc('get_active_game_aliases',{},false).catch(()=>[]);
+      const result=await window.luxMatchOCR.analyze(file,{members:currentRoster(),aliases:state.matchAliases,mode:$('lux-match-mode')?.value,result:$('lux-match-result')?.value},setMatchOcrProgress);
+      state.matchOcrResult=result;state.matchDetected.clear();state.matchUnmatched=result.unmatched||[];
+      (result.matched||[]).forEach(row=>{if(state.selectedPlayers.size<4||state.selectedPlayers.has(row.playerId)){state.matchDetected.set(row.playerId,row);state.selectedPlayers.add(row.playerId);}});
+      if($('lux-match-mode'))$('lux-match-mode').value=result.mode||$('lux-match-mode').value;
+      if($('lux-match-result'))$('lux-match-result').value=result.result||$('lux-match-result').value;
+      if($('lux-match-score-for'))$('lux-match-score-for').value=Number(result.scoreFor||0);
+      if($('lux-match-score-against'))$('lux-match-score-against').value=Number(result.scoreAgainst||0);
+      $('lux-match-details')?.setAttribute('open','');
+      renderMatchOcrSummary();renderParticipantInputs();
+      toast(`✅ CAPTURA LEÍDA · ${state.matchDetected.size} INTEGRANTE(S) RECONOCIDO(S)${state.matchUnmatched.length?` · ${state.matchUnmatched.length} NOMBRE(S) POR CONFIRMAR`:''}`);
+    }catch(error){toast(`⚠️ ${errorText(error,'No se pudo leer la captura').toUpperCase()} · PUEDES ENVIARLA SIN OCR`);}
+    finally{if(button){button.disabled=false;button.textContent='✨ LEER CAPTURA AUTOMÁTICAMENTE';}}
+  }
+
   function renderParticipantInputs() {
     const target = $('lux-match-participant-stats');
     if (!target) return;
     const byId = new Map(currentRoster().map(row => [profileId(row),row]));
     target.innerHTML = [...state.selectedPlayers].map(id => {
       const row = byId.get(id) || { player_id:id, display_name:'Integrante' };
-      return `<article class="lux-match-participant" data-player-id="${esc(id)}"><div class="lux-participant-name">${avatar(row)}<strong>${esc(profileName(row))}</strong></div>
-        <label>ROL<select data-stat="team_role">${roleOptions(row.primary_game_role || '')}</select></label>
-        <label>BAJAS<input data-stat="kills" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
-        <label>MUERTES<input data-stat="deaths" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
-        <label>ASISTENCIAS<input data-stat="assists" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
-        <label>DAÑO<input data-stat="damage" type="number" inputmode="numeric" min="0" max="10000000" value="0"/></label></article>`;
+      const detected=state.matchDetected.get(id)||{};
+      return `<article class="lux-match-participant${detected.confidence&&detected.confidence<70?' lux-confidence-low':''}" data-player-id="${esc(id)}" data-team-role="${esc(row.primary_game_role||'')}"><div class="lux-participant-name">${avatar(row)}<span><strong>${esc(profileName(row))}</strong><small>${detected.matchedBy?`Detectado · ${Number(detected.confidence||0)}%`:'Seleccionado manualmente'}</small></span></div>
+        <label>NOMBRE EN FREE FIRE<input data-stat="game_name" maxlength="80" value="${esc(detected.detectedName||detected.gameName||profileName(row))}"/></label>
+        <label>BAJAS <em>OPCIONAL</em><input data-stat="kills" type="number" inputmode="numeric" min="0" max="999" value="${Number(detected.kills||0)}"/></label>
+        <label>MUERTES <em>OPCIONAL</em><input data-stat="deaths" type="number" inputmode="numeric" min="0" max="999" value="${Number(detected.deaths||0)}"/></label>
+        <label>ASIST. <em>OPCIONAL</em><input data-stat="assists" type="number" inputmode="numeric" min="0" max="999" value="${Number(detected.assists||0)}"/></label>
+        <label>DAÑO <em>OPCIONAL</em><input data-stat="damage" type="number" inputmode="numeric" min="0" max="10000000" value="${Number(detected.damage||0)}"/></label></article>`;
     }).join('');
   }
 
@@ -193,19 +263,27 @@
     const roster = currentRoster();
     const mine = appState().user?.id;
     const matches = await core().request(`/rest/v1/matches?submitted_by=eq.${encodeURIComponent(mine)}&select=id,mode,played_at,opponent,result,score_for,score_against,status,rejection_reason,created_at&order=played_at.desc&limit=20`).catch(() => []);
-    panel.innerHTML = `<section class="lux-v3-card"><header><div><span class="hub-kicker">ACTIVIDAD COMPETITIVA</span><h2>Registrar un partido</h2><p>Una sola captura registra el resultado y las estadísticas de todos los integrantes seleccionados.</p></div>${statusBadge('pending')}</header>
-      <div class="lux-v3-grid three"><label class="lux-v3-field">MODO<select id="lux-match-mode"><option>1v1</option><option>2v2</option><option>3v3</option><option selected>4v4</option><option>Otro</option></select></label>
-        <label class="lux-v3-field">FECHA Y HORA<input id="lux-match-date" type="datetime-local" value="${nowLocalInput()}"/></label>
-        <label class="lux-v3-field">RESULTADO<select id="lux-match-result"><option value="win">VICTORIA</option><option value="loss">DERROTA</option><option value="draw">EMPATE</option></select></label>
-        <label class="lux-v3-field">CLAN RIVAL<input id="lux-match-opponent" maxlength="80" placeholder="Nombre del rival"/></label>
-        <label class="lux-v3-field">MARCADOR LUX<input id="lux-match-score-for" type="number" inputmode="numeric" min="0" max="999" value="1"/></label>
-        <label class="lux-v3-field">MARCADOR RIVAL<input id="lux-match-score-against" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
-        <label class="lux-v3-field lux-v3-span">CAPTURA DEL RESULTADO<input id="lux-match-file" type="file" accept="image/jpeg,image/png,image/webp"/></label>
-        <label class="lux-v3-field lux-v3-span">NOTA OPCIONAL<textarea id="lux-match-notes" maxlength="600" placeholder="Torneo, sala, observaciones…"></textarea></label></div>
-      <h3>¿Quiénes jugaron?</h3><div class="lux-v3-list">${roster.map(row => { const id=profileId(row); return `<label class="lux-v3-row"><input class="lux-participant-toggle" type="checkbox" data-match-player="${esc(id)}" ${state.selectedPlayers.has(id)?'checked':''} ${id===mine?'disabled':''} onchange="window.luxPlatformV3.toggleMatchPlayer('${esc(id)}',this.checked)"/>${avatar(row)}<div><strong>${esc(profileName(row))}</strong><small>${esc(row.primary_game_role || 'Rol sin definir')}</small></div></label>`; }).join('')}</div>
-      <h3>Estadísticas del equipo</h3><div id="lux-match-participant-stats" class="lux-match-participants"></div>
-      <div class="lux-v3-actions"><button id="lux-submit-match" class="primary" type="button" onclick="window.luxPlatformV3.submitMatch()">ENVIAR PARTIDO A REVISIÓN</button><button type="button" onclick="window.luxSupabase.showMyVictories()">VER CAPTURAS ANTIGUAS</button></div></section>
+    panel.innerHTML = `<section class="lux-v3-card lux-capture-first"><header><div><span class="hub-kicker">REGISTRO RÁPIDO</span><h2>Sube la captura. La web prepara el resto.</h2><p>Solo son obligatorios el modo y la imagen. El OCR intenta leer resultado, marcador, nombres, bajas y daño; tú corriges únicamente lo que falle.</p></div>${statusBadge('pending')}</header>
+      <div class="lux-capture-required"><label class="lux-v3-field">1 · MODO<select id="lux-match-mode"><option>1v1</option><option>2v2</option><option>3v3</option><option selected>4v4</option><option>Otro</option></select></label>
+        <label class="lux-v3-field">2 · CAPTURA FINAL<input id="lux-match-file" type="file" accept="image/jpeg,image/png,image/webp"/></label></div>
+      <div id="lux-match-preview" class="lux-match-preview" hidden></div>
+      <div id="lux-match-ocr-progress" class="lux-match-ocr-progress" hidden><i></i><span>Preparando el lector…</span></div>
+      <div class="lux-v3-actions lux-capture-actions"><button id="lux-analyze-match" class="gold" type="button" onclick="window.luxPlatformV3.analyzeMatchCapture()">✨ LEER CAPTURA AUTOMÁTICAMENTE</button><button id="lux-submit-match" class="primary" type="button" onclick="window.luxPlatformV3.submitMatch()">ENVIAR A REVISIÓN</button></div>
+      <details id="lux-match-details" class="lux-match-details"><summary>REVISAR O CORREGIR DATOS <small>OPCIONAL</small></summary>
+        <div id="lux-match-ocr-summary" class="lux-match-ocr-summary"></div>
+        <div class="lux-v3-grid three"><label class="lux-v3-field">FECHA Y HORA<input id="lux-match-date" type="datetime-local" value="${nowLocalInput()}"/></label>
+          <label class="lux-v3-field">RESULTADO<select id="lux-match-result"><option value="win">VICTORIA</option><option value="loss">DERROTA</option><option value="draw">EMPATE</option></select></label>
+          <label class="lux-v3-field">CLAN RIVAL <small>OPCIONAL</small><input id="lux-match-opponent" maxlength="80" placeholder="Nombre del rival"/></label>
+          <label class="lux-v3-field">MARCADOR LUX<input id="lux-match-score-for" type="number" inputmode="numeric" min="0" max="999" value="1"/></label>
+          <label class="lux-v3-field">MARCADOR RIVAL<input id="lux-match-score-against" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
+          <label class="lux-v3-field">NOTA <small>OPCIONAL</small><input id="lux-match-notes" maxlength="600" placeholder="Torneo, sala u observación"/></label></div>
+        <h3>Integrantes del clan que jugaron</h3><p class="lux-v3-help">Tu cuenta ya está incluida. Marca solamente compañeros del clan; no marques rivales.</p><div class="lux-match-roster">${roster.map(row => { const id=profileId(row); return `<label class="lux-v3-row"><input class="lux-participant-toggle" type="checkbox" data-match-player="${esc(id)}" ${state.selectedPlayers.has(id)?'checked':''} ${id===mine?'disabled':''} onchange="window.luxPlatformV3.toggleMatchPlayer('${esc(id)}',this.checked)"/>${avatar(row)}<div><strong>${esc(profileName(row))}</strong><small>${esc(row.primary_game_role || 'Rol sin definir')}</small></div></label>`; }).join('')}</div>
+        <h3>Datos detectados por jugador</h3><p class="lux-v3-help">Bajas, muertes, asistencias y daño son opcionales. Déjalos en 0 si la captura no los muestra con claridad.</p><div id="lux-match-participant-stats" class="lux-match-participants"></div>
+      </details>
+      <p class="lux-capture-safety">🔒 La captura no suma puntos automáticamente: primero pasa por revisión y control de duplicados.</p></section>
       <section class="lux-v3-card"><header><div><span class="hub-kicker">HISTORIAL</span><h2>Mis envíos recientes</h2></div></header><div class="lux-v3-list">${matches.length ? matches.map(match => `<article class="lux-v3-row"><span class="lux-v3-row-avatar">🎮</span><div><strong>${esc(match.mode)} · ${esc(statusLabel(match.result))}</strong><small>${fmtDate(match.played_at)}${match.opponent?` · vs ${esc(match.opponent)}`:''}${match.rejection_reason?` · ${esc(match.rejection_reason)}`:''}</small></div>${statusBadge(match.status)}</article>`).join('') : '<p class="lux-v3-empty">Todavía no has enviado partidos con el sistema nuevo.</p>'}</div></section>`;
+    $('lux-match-file')?.addEventListener('change',previewMatchFile);
+    renderMatchOcrSummary();
     renderParticipantInputs();
   }
 
@@ -217,12 +295,14 @@
     const participantRows = [...document.querySelectorAll('.lux-match-participant')];
     const participants = participantRows.map(row => ({
       player_id:row.dataset.playerId,
-      team_role:row.querySelector('[data-stat="team_role"]')?.value || null,
+      team_role:row.dataset.teamRole || null,
+      game_name:row.querySelector('[data-stat="game_name"]')?.value.trim() || null,
       kills:Number(row.querySelector('[data-stat="kills"]')?.value || 0),
       deaths:Number(row.querySelector('[data-stat="deaths"]')?.value || 0),
       assists:Number(row.querySelector('[data-stat="assists"]')?.value || 0),
       damage:Number(row.querySelector('[data-stat="damage"]')?.value || 0),
-      is_mvp:false
+      is_mvp:false,
+      stats_confirmed:Boolean(state.matchDetected.get(row.dataset.playerId)?.confirmed)
     }));
     let path = '';
     if (button) { button.disabled=true; button.textContent='COMPROBANDO Y SUBIENDO…'; }
@@ -235,10 +315,10 @@
         p_opponent:$('lux-match-opponent').value.trim()||null,p_result:$('lux-match-result').value,
         p_score_for:Number($('lux-match-score-for').value||0),p_score_against:Number($('lux-match-score-against').value||0),
         p_evidence_path:path,p_evidence_sha256:hash,p_evidence_dhash:visualHashes[0],p_visual_hashes:visualHashes,p_participants:participants,
-        p_notes:$('lux-match-notes').value.trim()||null,p_season_id:null
+        p_notes:[state.matchOcrResult?`OCR ${Number(state.matchOcrResult.confidence||0)}%`:null,$('lux-match-notes').value.trim()||null].filter(Boolean).join(' · ')||null,p_season_id:null
       });
       toast('✅ PARTIDO ENVIADO · UNA SOLA APROBACIÓN ACTUALIZARÁ A TODO EL EQUIPO');
-      state.selectedPlayers=new Set([appState().user.id]);
+      state.selectedPlayers=new Set([appState().user.id]);state.matchDetected.clear();state.matchUnmatched=[];state.matchOcrResult=null;
       await renderMemberMatches();
     } catch(error) {
       if(path) await core().request(`/storage/v1/object/lux-evidence/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'DELETE'}).catch(()=>{});
@@ -282,19 +362,53 @@
       core().request('/rest/v1/seasons?select=*&order=starts_on.desc',{},false).catch(()=>[])
     ]);
     const ids=matches.map(row=>row.id);
-    const participants=ids.length?await core().request(`/rest/v1/match_participants?match_id=in.(${ids.join(',')})&select=match_id,player_id,team_role,kills,deaths,assists,damage,is_mvp`).catch(()=>[]):[];
+    const participants=ids.length?await core().request(`/rest/v1/match_participants?match_id=in.(${ids.join(',')})&select=match_id,player_id,game_name,team_role,kills,deaths,assists,damage,is_mvp,stats_confirmed`).catch(()=>[]):[];
     const byMatch=new Map();participants.forEach(row=>{if(!byMatch.has(row.match_id))byMatch.set(row.match_id,[]);byMatch.get(row.match_id).push(row);});
     const cards=await Promise.all(matches.map(async match=>({...match,image:await core().signedEvidence(match.evidence_path).catch(()=>''),players:byMatch.get(match.id)||[]})));
-    panel.innerHTML=`<section class="lux-v3-card"><header><div><span class="hub-kicker">REVISIÓN CONJUNTA</span><h2>Partidos pendientes</h2><p>Una aprobación aplica el resultado y los números a todos los participantes seleccionados.</p></div>${statusBadge(cards.length?'pending':'approved')}</header>
-      <div class="lux-v3-list">${cards.length?cards.map(match=>`<article class="lux-v3-card"><header><div><span class="hub-kicker">${esc(match.mode)} · ${esc(statusLabel(match.result).toUpperCase())}${match.duplicate_risk?'<span class="lux-risk-flag">POSIBLE IMAGEN SIMILAR</span>':''}</span><h3>${esc(match.opponent?`LUX vs ${match.opponent}`:'Partido del clan')}</h3><p>${fmtDate(match.played_at)} · Marcador ${Number(match.score_for||0)}-${Number(match.score_against||0)}</p></div>${match.image?`<button class="lux-v3-button gold" onclick="window.luxSupabase.openEvidence('${esc(match.image)}','Partido ${esc(match.mode)}')">AMPLIAR CAPTURA</button>`:''}</header>
+    state.pendingMatches=new Map(cards.map(match=>[match.id,match]));state.selectedMatches=new Set([...state.selectedMatches].filter(id=>state.pendingMatches.has(id)));
+    panel.innerHTML=`<section class="lux-v3-card"><header><div><span class="hub-kicker">REVISIÓN RÁPIDA</span><h2>Partidos pendientes</h2><p>La captura sigue siendo la prueba. Corrige solo lo necesario y aprueba una o varias fichas juntas.</p></div>${statusBadge(cards.length?'pending':'approved')}</header>
+      ${cards.length?`<div class="lux-review-toolbar"><label><input type="checkbox" onchange="window.luxPlatformV3.selectAllPendingMatches(this.checked)"/> SELECCIONAR SIN RIESGO</label><button id="lux-approve-selected" class="lux-v3-button primary" type="button" onclick="window.luxPlatformV3.approveSelectedMatches()" ${state.selectedMatches.size?'':'disabled'}>APROBAR SELECCIONADAS (${state.selectedMatches.size})</button></div>`:''}
+      <div class="lux-v3-list">${cards.length?cards.map(match=>`<article class="lux-v3-card lux-review-match${match.duplicate_risk?' has-risk':''}"><header><label class="lux-review-check"><input type="checkbox" data-review-match="${esc(match.id)}" ${state.selectedMatches.has(match.id)?'checked':''} onchange="window.luxPlatformV3.toggleReviewMatch('${esc(match.id)}',this.checked)"/><span>SELECCIONAR</span></label><div><span class="hub-kicker">${esc(match.mode)} · ${esc(statusLabel(match.result).toUpperCase())}${match.duplicate_risk?'<span class="lux-risk-flag">REVISAR: IMAGEN PARECIDA</span>':''}</span><h3>${esc(match.opponent?`LUX vs ${match.opponent}`:'Partido del clan')}</h3><p>${fmtDate(match.played_at)} · Marcador ${Number(match.score_for||0)}-${Number(match.score_against||0)}${match.notes?` · ${esc(match.notes)}`:''}</p></div>${match.image?`<button class="lux-v3-button gold" onclick="window.luxSupabase.openEvidence('${esc(match.image)}','Partido ${esc(match.mode)}')">AMPLIAR CAPTURA</button>`:''}</header>
         <div class="lux-v3-list">${match.players.map(player=>{const member=appState().directory.get(player.player_id)||appState().publicDirectory.get(player.player_id)||{display_name:'Integrante'};return `<article class="lux-v3-row">${avatar(member)}<div><strong>${esc(profileName(member))}</strong><small>${esc(player.team_role||'Sin rol')} · ${player.kills} bajas · ${player.deaths} muertes · ${player.assists} asistencias · ${player.damage} daño</small></div></article>`;}).join('')}</div>
-        <div class="lux-v3-actions"><button class="primary" onclick="window.luxPlatformV3.reviewMatch('${esc(match.id)}','approved')">APROBAR PARA TODO EL EQUIPO</button><button class="danger" onclick="window.luxPlatformV3.reviewMatch('${esc(match.id)}','rejected')">RECHAZAR</button></div></article>`).join(''):'<p class="lux-v3-empty">No hay partidos pendientes.</p>'}</div></section>
+        <div class="lux-v3-actions"><button class="gold" onclick="window.luxPlatformV3.openMatchCorrection('${esc(match.id)}')">CORREGIR DATOS</button><button class="primary" onclick="window.luxPlatformV3.reviewMatch('${esc(match.id)}','approved')">APROBAR</button><button class="danger" onclick="window.luxPlatformV3.reviewMatch('${esc(match.id)}','rejected')">RECHAZAR</button></div></article>`).join(''):'<p class="lux-v3-empty">No hay partidos pendientes.</p>'}</div></section>
       <section class="lux-v3-card"><header><div><span class="hub-kicker">TEMPORADAS</span><h2>Clasificación por etapas</h2><p>Archiva periodos sin borrar el historial general.</p></div></header><div class="lux-v3-grid three"><label class="lux-v3-field">NOMBRE<input id="lux-season-name" maxlength="80" placeholder="Ej.: Agosto competitivo"/></label><label class="lux-v3-field">INICIO<input id="lux-season-start" type="date" value="${new Date().toISOString().slice(0,10)}"/></label><label class="lux-v3-field">FIN OPCIONAL<input id="lux-season-end" type="date"/></label></div><div class="lux-v3-actions"><button class="gold" onclick="window.luxPlatformV3.createSeason()">CREAR Y ACTIVAR TEMPORADA</button></div><div class="lux-v3-list">${seasons.map(season=>`<article class="lux-v3-row"><span class="lux-v3-row-avatar">🏁</span><div><strong>${esc(season.name)}</strong><small>${season.starts_on} → ${season.ends_on||'sin fecha final'}</small></div><span class="lux-v3-row-actions">${statusBadge(season.is_current?'active':season.is_archived?'inactive':'reserve')}${!season.is_current?`<button onclick="window.luxPlatformV3.setSeasonState('${esc(season.id)}','activate')">ACTIVAR</button>`:''}${!season.is_archived?`<button class="reject" onclick="window.luxPlatformV3.setSeasonState('${esc(season.id)}','archive')">ARCHIVAR</button>`:''}</span></article>`).join('')}</div></section>`;
   }
 
   async function reviewMatch(id,status){
     const reason=status==='rejected'?(window.prompt('Motivo del rechazo:')||null):null;
     try{await core().rpc('review_match',{p_match_id:id,p_status:status,p_reason:reason});toast(status==='approved'?'✅ PARTIDO APROBADO PARA TODO EL EQUIPO':'↩️ PARTIDO RECHAZADO');await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
+  }
+
+  function toggleReviewMatch(id,checked){if(checked)state.selectedMatches.add(id);else state.selectedMatches.delete(id);const button=$('lux-approve-selected');if(button){button.disabled=!state.selectedMatches.size;button.textContent=`APROBAR SELECCIONADAS (${state.selectedMatches.size})`;}}
+
+  function selectAllPendingMatches(checked){
+    state.selectedMatches=new Set(checked?[...state.pendingMatches.values()].filter(match=>!match.duplicate_risk).map(match=>match.id):[]);
+    document.querySelectorAll('[data-review-match]').forEach(input=>{input.checked=state.selectedMatches.has(input.dataset.reviewMatch);});
+    toggleReviewMatch('',false);
+  }
+
+  async function approveSelectedMatches(){
+    const ids=[...state.selectedMatches].filter(id=>state.pendingMatches.has(id));if(!ids.length){toast('⚠️ SELECCIONA AL MENOS UN PARTIDO');return;}
+    const button=$('lux-approve-selected');if(button){button.disabled=true;button.textContent='APROBANDO…';}
+    try{const count=await core().rpc('staff_bulk_review_matches',{p_match_ids:ids,p_status:'approved',p_reason:null});state.selectedMatches.clear();toast(`✅ ${Number(count||ids.length)} PARTIDO(S) APROBADO(S)`);await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}
+    catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);if(button){button.disabled=false;button.textContent=`APROBAR SELECCIONADAS (${ids.length})`;}}
+  }
+
+  function correctionParticipantRow(player,index){
+    const member=appState().directory.get(player.player_id)||appState().publicDirectory.get(player.player_id)||{display_name:'Integrante'};
+    return `<article class="lux-match-correction-player" data-correction-player="${index}">${avatar(member)}<label>INTEGRANTE<select data-field="player_id">${memberOptions(player.player_id)}</select></label><label>NOMBRE FREE FIRE<input data-field="game_name" maxlength="80" value="${esc(player.game_name||profileName(member))}"/></label><label>BAJAS<input data-field="kills" type="number" min="0" max="999" value="${Number(player.kills||0)}"/></label><label>MUERTES<input data-field="deaths" type="number" min="0" max="999" value="${Number(player.deaths||0)}"/></label><label>ASIST.<input data-field="assists" type="number" min="0" max="999" value="${Number(player.assists||0)}"/></label><label>DAÑO<input data-field="damage" type="number" min="0" max="10000000" value="${Number(player.damage||0)}"/></label></article>`;
+  }
+
+  function openMatchCorrection(id){
+    const match=state.pendingMatches.get(id);if(!match)return;
+    showDialog('CORREGIR PARTIDO',`<p>Compara estos campos con la captura. Al guardar, la ficha seguirá pendiente hasta que pulses Aprobar.</p><div class="lux-v3-grid three"><label class="lux-v3-field">MODO<select id="lux-correct-mode">${['1v1','2v2','3v3','4v4','Otro'].map(mode=>`<option${mode===match.mode?' selected':''}>${mode}</option>`).join('')}</select></label><label class="lux-v3-field">RESULTADO<select id="lux-correct-result"><option value="win"${match.result==='win'?' selected':''}>VICTORIA</option><option value="loss"${match.result==='loss'?' selected':''}>DERROTA</option><option value="draw"${match.result==='draw'?' selected':''}>EMPATE</option></select></label><label class="lux-v3-field">RIVAL<input id="lux-correct-opponent" maxlength="80" value="${esc(match.opponent||'')}"/></label><label class="lux-v3-field">MARCADOR LUX<input id="lux-correct-score-for" type="number" min="0" max="999" value="${Number(match.score_for||0)}"/></label><label class="lux-v3-field">MARCADOR RIVAL<input id="lux-correct-score-against" type="number" min="0" max="999" value="${Number(match.score_against||0)}"/></label></div><h3>INTEGRANTES Y ESTADÍSTICAS</h3><div id="lux-match-correction-players" class="lux-match-correction-players">${match.players.map(correctionParticipantRow).join('')}</div><div class="lux-v3-actions"><button class="primary" onclick="window.luxPlatformV3.saveMatchCorrection('${esc(id)}')">GUARDAR CORRECCIÓN</button></div>`);
+  }
+
+  async function saveMatchCorrection(id){
+    const rows=[...document.querySelectorAll('[data-correction-player]')],participants=rows.map(row=>({player_id:row.querySelector('[data-field="player_id"]')?.value,game_name:row.querySelector('[data-field="game_name"]')?.value.trim()||null,team_role:null,kills:Number(row.querySelector('[data-field="kills"]')?.value||0),deaths:Number(row.querySelector('[data-field="deaths"]')?.value||0),assists:Number(row.querySelector('[data-field="assists"]')?.value||0),damage:Number(row.querySelector('[data-field="damage"]')?.value||0),is_mvp:false,stats_confirmed:true}));
+    if(participants.some(row=>!row.player_id)||new Set(participants.map(row=>row.player_id)).size!==participants.length){toast('⚠️ REVISA LOS INTEGRANTES REPETIDOS O VACÍOS');return;}
+    try{await core().rpc('staff_update_pending_match',{p_match_id:id,p_mode:$('lux-correct-mode').value,p_result:$('lux-correct-result').value,p_score_for:Number($('lux-correct-score-for').value||0),p_score_against:Number($('lux-correct-score-against').value||0),p_opponent:$('lux-correct-opponent').value.trim()||null,p_participants:participants});$('lux-v3-dialog')?.remove();toast('✅ CORRECCIÓN GUARDADA · LISTA PARA APROBAR');await renderAdminMatches();}
+    catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
   }
 
   async function createSeason(){
@@ -602,7 +716,7 @@
   }
 
   window.luxPlatformV3={guardMember,afterProfileSaved,showProfileWhilePending,showMemberSection,navigateAdmin,toggleMatchPlayer,submitMatch,
-    reviewMembership,saveMembershipStatus,reviewMatch,createSeason,setSeasonState,respondEvent,createEvent,closeEvent,showRecommendedTeam,saveRecommendedTeam,createAnnouncement,archiveAnnouncement,
+    analyzeMatchCapture,assignMatchOcrPlayer,ignoreMatchOcrPlayer,reviewMembership,saveMembershipStatus,reviewMatch,toggleReviewMatch,selectAllPendingMatches,approveSelectedMatches,openMatchCorrection,saveMatchCorrection,createSeason,setSeasonState,respondEvent,createEvent,closeEvent,showRecommendedTeam,saveRecommendedTeam,createAnnouncement,archiveAnnouncement,
     refreshAdminSummary,createInvite,mergeProfiles,restoreMember,purgeMember,saveAlias,disableAlias,downloadFullBackup,restoreFullBackup,
     toggleNotifications,markNotificationsRead,shareCurrentProfile,copyCurrentProfile,showProfileQr,renderPeriodRanking};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();

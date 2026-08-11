@@ -166,6 +166,35 @@ test('victorias y partidos se envían a RPC segura', async ({ page }) => {
   await expect.poll(() => secureRpc).toBe(true);
 });
 
+test('registrar partido pide solo modo y captura y deja el resto como correccion opcional', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openMember('matches'));
+  await expect(page.locator('#lux-match-mode')).toBeVisible();
+  await expect(page.locator('#lux-match-file')).toBeVisible();
+  await expect(page.getByRole('button', { name:/leer captura automáticamente/i })).toBeVisible();
+  await expect(page.locator('#lux-match-details')).not.toHaveAttribute('open');
+  await page.locator('#lux-match-details summary').click();
+  await expect(page.locator('#lux-match-result')).toBeVisible();
+  await expect(page.getByText(/bajas, muertes, asistencias y daño son opcionales/i)).toBeVisible();
+});
+
+test('el lector de partidas prepara marcador, resultado y jugador conocido', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => typeof window.luxMatchOCR?.parseResult)).toBe('function');
+  const parsed = await page.evaluate(profile => window.luxMatchOCR.parseResult([
+    { text:'VICTORIA 7 VS 4', confidence:94 },
+    { text:'14/6/3 5791 DAVID TEST', confidence:88 }
+  ], 'VICTORIA 7 VS 4\n14/6/3 5791 DAVID TEST', { members:[profile], aliases:[], mode:'4v4', result:'win' }), activeProfile);
+  expect(parsed.result).toBe('win');
+  expect(parsed.scoreFor).toBe(7);
+  expect(parsed.scoreAgainst).toBe(4);
+  expect(parsed.matched[0]?.playerId).toBe(user.id);
+  expect(parsed.matched[0]?.damage).toBe(5791);
+});
+
 test('placas y banners cargan sin depender de archivos incrustados', async ({ page }) => {
   await mockSupabase(page, { role:'owner' });
   await page.goto(oauthUrl());
