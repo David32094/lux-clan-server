@@ -63,6 +63,23 @@ test('las partidas usan captura primero, OCR corregible y aprobacion por lote', 
   assert.match(sql, /stats_confirmed/i);
 });
 
+test('el acceso general se puede abrir, aprobar o limitar por invitacion', async () => {
+  const sql = await read('supabase/migrations/20260811_zzzz_access_control.sql');
+  for (const feature of ['clan_access_settings','get_clan_access_settings','owner_set_clan_access_mode','invite_only','complete_my_onboarding']) {
+    assert.match(sql, new RegExp(feature, 'i'), `Falta ${feature}`);
+  }
+  assert.match(sql, /selected_mode='open'/i);
+  assert.match(sql, /membership_status='active'/i);
+});
+
+test('el OCR separa los dos equipos antes de comparar integrantes', async () => {
+  const ocr = await read('lux-match-ocr.js');
+  assert.match(ocr, /selectClanSide/);
+  assert.match(ocr, /side:'left'/);
+  assert.match(ocr, /side:'right'/);
+  assert.match(ocr, /prepareRegion/);
+});
+
 test('no se publicó ninguna clave privada de Supabase', async () => {
   const files = ['index.html','LUX_CLAN_EDITOR_BY.DAVID.XIT.html','prototipo-supabase.js','supabase-client-config.js'];
   for (const file of files) assert.ok(!(await read(file)).includes('sb_secret_'), `Clave privada en ${file}`);

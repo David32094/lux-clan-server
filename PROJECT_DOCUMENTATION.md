@@ -458,7 +458,34 @@ Una `service_role` sí es secreta y está prohibida en el repositorio.
 - La web no desplaza horizontalmente en iPhone ni Android.
 - Tras la primera carga, las plantillas pueden abrirse sin conexión.
 
-## 20. Limitaciones deliberadas
+## 20. Acceso, OCR por equipos y perfiles compactos
+
+Las capturas finales horizontales se procesan en tres zonas: pantalla completa,
+equipo izquierdo y equipo derecho. La separación evita unir el nombre de un
+aliado con las estadísticas del rival situado en la misma fila. El sistema elige
+el lado del clan comparando perfiles y alias conocidos; si hay duda, conserva la
+lectura como borrador para corrección humana. El OCR nunca aprueba una partida.
+
+El owner controla `clan_access_settings.access_mode` desde **Operaciones**:
+
+- `open`: cualquier persona con el enlace general y una cuenta de Google queda
+  activa después de completar nombre, edad y país.
+- `approval`: cualquiera puede crear su ficha, pero permanece pendiente hasta
+  que una líder la apruebe.
+- `invite_only`: una cuenta nueva solo se activa usando un enlace temporal.
+
+Restringir el acceso no expulsa integrantes existentes. Cambiar a `open` activa
+las fichas completas que estaban pendientes. El enlace general es siempre
+`https://david32094.github.io/lux-clan-server/`; las invitaciones agregan un token
+temporal al mismo enlace.
+
+Integrante y administrador abren el ranking dentro de su propio panel, por lo
+que la cabecera no se desmonta ni cambia de altura. Existe una sola lista de
+clasificación por periodo y no se muestran puntos técnicos. Las fichas muestran
+cuatro cifras principales; modos, placas y estadísticas avanzadas permanecen en
+un desplegable cerrado para evitar perfiles excesivamente largos en móviles.
+
+## 21. Limitaciones deliberadas
 
 - GitHub Pages no ejecuta código de servidor; toda seguridad real está en
   Supabase.

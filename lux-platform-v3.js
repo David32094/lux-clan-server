@@ -134,6 +134,11 @@
         <p>${pending ? 'Tus datos ya están guardados. Una líder debe aceptarte antes de que tu ficha aparezca públicamente y puedas registrar partidos.' : esc(profile.status_reason || 'Consulta con la administración del clan para conocer los detalles.')}</p>
         <ol><li><b>✓</b> Cuenta de Google conectada</li><li><b>✓</b> Perfil obligatorio completado</li><li><b>${pending ? '3' : '!'}</b> ${pending ? 'Esperando aprobación del clan' : `Estado actual: ${esc(statusLabel(status))}`}</li></ol>
         <div class="lux-v3-actions"><button type="button" onclick="window.luxSupabase.logout()">CERRAR SESIÓN</button>${pending ? '<button class="gold" type="button" onclick="window.luxPlatformV3.showProfileWhilePending()">CORREGIR MIS DATOS</button>' : ''}</div></section>`;
+      if(pending&&gate.querySelector('p'))gate.querySelector('p').textContent=appState().accessMode==='invite_only'
+        ? 'El clan esta restringido. Abre un link de invitacion enviado por el owner y vuelve a guardar tu perfil.'
+        : appState().accessMode==='open'
+          ? 'Tu perfil esta completo. Actualiza la pagina para activar el acceso general.'
+          : 'Tus datos ya estan guardados. Una lider debe aceptar tu solicitud para activar tu cuenta.';
       showOnlyMember(gate, 'pending');
       return true;
     }
@@ -216,7 +221,7 @@
     if(button){button.disabled=true;button.textContent='LEYENDO CAPTURA…';}
     try{
       if(!state.matchAliases.length)state.matchAliases=await core().rpc('get_active_game_aliases',{},false).catch(()=>[]);
-      const result=await window.luxMatchOCR.analyze(file,{members:currentRoster(),aliases:state.matchAliases,mode:$('lux-match-mode')?.value,result:$('lux-match-result')?.value},setMatchOcrProgress);
+      const result=await window.luxMatchOCR.analyze(file,{members:currentRoster(),aliases:state.matchAliases,currentPlayerId:appState().user?.id||'',mode:$('lux-match-mode')?.value,result:$('lux-match-result')?.value},setMatchOcrProgress);
       state.matchOcrResult=result;state.matchDetected.clear();state.matchUnmatched=result.unmatched||[];
       (result.matched||[]).forEach(row=>{if(state.selectedPlayers.size<4||state.selectedPlayers.has(row.playerId)){state.matchDetected.set(row.playerId,row);state.selectedPlayers.add(row.playerId);}});
       if($('lux-match-mode'))$('lux-match-mode').value=result.mode||$('lux-match-mode').value;
@@ -497,8 +502,32 @@
     return [...appState().directory.values()].filter(row=>includeRemoved||!row.removed_at).map(row=>`<option value="${esc(row.id)}">${esc(row.display_name)} · ${esc(statusLabel(row.membership_status||'active'))}</option>`).join('');
   }
 
+  function generalJoinUrl(){return new URL('./',location.href).href;}
+
+  async function copyGeneralJoinLink(){
+    const url=generalJoinUrl();
+    try{await navigator.clipboard.writeText(url);toast('✅ LINK GENERAL COPIADO');}
+    catch(_){window.prompt('Copia este enlace:',url);}
+  }
+
+  async function renderAccessControl(){
+    const panel=$('lux-v3-admin-operations');if(!panel||!appState().isOwner)return;
+    const settings=await core().rpc('get_clan_access_settings',{},false).catch(()=>[{access_mode:appState().accessMode||'approval'}]);
+    const mode=settings?.[0]?.access_mode||settings?.access_mode||'approval';appState().accessMode=mode;
+    $('lux-access-control')?.remove();
+    panel.insertAdjacentHTML('afterbegin',`<section id="lux-access-control" class="lux-v3-card lux-access-control"><header><div><span class="hub-kicker">ENTRADA AL CLAN</span><h2>Control de acceso</h2><p>El enlace general siempre es el mismo. Tu decides que ocurre cuando llega una cuenta nueva.</p></div><span class="lux-access-state ${esc(mode)}">${mode==='open'?'ABIERTO':mode==='approval'?'CON APROBACION':'SOLO INVITACION'}</span></header><div class="lux-access-grid"><article><h3>Link general</h3><p>Este es el enlace corto que puedes enviar al grupo completo.</p><code>${esc(generalJoinUrl())}</code><button class="lux-v3-button gold" onclick="window.luxPlatformV3.copyGeneralJoinLink()">COPIAR LINK GENERAL</button></article><article><label class="lux-v3-field">QUIEN PUEDE UNIRSE<select id="lux-access-mode"><option value="open"${mode==='open'?' selected':''}>TODOS CON EL LINK</option><option value="approval"${mode==='approval'?' selected':''}>REGISTRO CON APROBACION</option><option value="invite_only"${mode==='invite_only'?' selected':''}>SOLO LINKS DE INVITACION</option></select></label><p class="lux-access-help"><b>TODOS:</b> se activa al completar el perfil.<br/><b>APROBACION:</b> una lider acepta la solicitud.<br/><b>INVITACION:</b> solo entra con un link temporal.</p><button class="lux-v3-button primary" onclick="window.luxPlatformV3.saveAccessMode()">GUARDAR ACCESO</button></article></div></section>`);
+  }
+
+  async function saveAccessMode(){
+    const mode=$('lux-access-mode')?.value;if(!mode||!appState().isOwner)return;
+    try{await core().rpc('owner_set_clan_access_mode',{p_mode:mode});appState().accessMode=mode;toast('✅ ACCESO DEL CLAN ACTUALIZADO');await Promise.all([renderAccessControl(),core().renderPublic()]);}
+    catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
+  }
+
   async function renderOperations(){
     const panel=$('lux-v3-admin-operations');if(!panel||!appState().isOwner)return;
+    const accessObserver=new MutationObserver(()=>{if(panel.childElementCount){accessObserver.disconnect();renderAccessControl();}});
+    accessObserver.observe(panel,{childList:true});
     if(!appState().directory.size)await core().renderAdmin();
     const [accounts,aliases,audit]=await Promise.all([
       core().rpc('owner_list_clan_users'),core().rpc('staff_list_alias_conflicts').catch(()=>[]),
@@ -623,7 +652,35 @@
 
   function rankingStatsLine(row){
     const played=Number(row.matches_played||0),wins=Number(row.victories_total||0);
-    return `${wins} victorias · ${played} partidas · ${Number(row.win_rate||0)}% · K/D ${Number(row.kd||0)} · ${Number(row.kills||0)} bajas`;
+    return `${wins} victorias · ${Number(row.victories_4v4||0)} en 4v4 · ${played} partidas`;
+  }
+
+  async function ensureContextRankingPanel(context){
+    ensurePanels();
+    const page=document.querySelector(`#hub-${context} .hub-page`),id=`lux-${context}-ranking-panel`;
+    if(!page)return null;
+    let panel=$(id);
+    if(panel)return panel;
+    const seasons=await core().request('/rest/v1/seasons?select=id,name,is_current,starts_on&order=starts_on.desc',{},false).catch(()=>[]);
+    const options=seasons.map(season=>`<option value="season:${esc(season.id)}">${season.is_current?'ACTUAL · ':''}${esc(season.name)}</option>`).join('');
+    page.insertAdjacentHTML('beforeend',`<section id="${id}" class="lux-v3-panel lux-context-ranking-panel" hidden><section class="lux-v3-card"><header><div><span class="hub-kicker">CLASIFICACION OFICIAL</span><h2>Ranking del clan</h2><p>Una sola lista, basada unicamente en partidas aprobadas.</p></div></header><div class="lux-ranking-toolbar"><label>PERIODO<select id="lux-${context}-ranking-period" onchange="window.luxPlatformV3.renderPeriodRanking(this.value,'lux-${context}-ranking')"><option value="all">HISTORICO</option><option value="week">ESTA SEMANA</option><option value="month">ESTE MES</option><option value="current">TEMPORADA ACTUAL</option>${options}</select></label><p>Primero se ordena por victorias confirmadas.</p></div><div id="lux-${context}-ranking" class="lux-public-ranking"><p class="hub-empty lux-loading-placeholder">Cargando jugadores...</p></div></section></section>`);
+    return $(id);
+  }
+
+  async function openContextRanking(context){
+    if(context==='admin'&&!appState().isStaff)return false;
+    const navigationToken=core().beginNavigation?.(`${context}:ranking`);
+    try{
+      window.luxHub?.setScreen?.(context);appState().navigationContext=context;core().renderNavigation?.();
+      if(context==='member'&&await guardMember('ranking'))return true;
+      const panel=await ensureContextRankingPanel(context);
+      if(context==='admin')showOnlyAdmin(panel,'ranking');else showOnlyMember(panel,'ranking');
+      await renderPeriodRanking($(`lux-${context}-ranking-period`)?.value||'all',`lux-${context}-ranking`);
+      return true;
+    }finally{
+      const page=document.querySelector(`#hub-${context} .hub-page`),visible=[...(page?.children||[])].find(child=>!child.hidden&&!['lux-member-tabs','lux-admin-tabs'].includes(child.id));
+      if(navigationToken!=null)core().endNavigation?.(navigationToken,visible);
+    }
   }
 
   async function ensureRankingFilters(){
@@ -634,8 +691,8 @@
     list.insertAdjacentHTML('beforebegin',`<div class="lux-ranking-toolbar"><label>PERIODO<select id="lux-ranking-period" onchange="window.luxPlatformV3.renderPeriodRanking(this.value)"><option value="all">HISTÓRICO</option><option value="week">ESTA SEMANA</option><option value="month">ESTE MES</option><option value="current">TEMPORADA ACTUAL</option>${options}</select></label><p>Las estadísticas solo incluyen evidencias aprobadas.</p></div>`);
   }
 
-  async function renderPeriodRanking(value='all'){
-    const list=$('lux-public-ranking');if(!list)return;
+  async function renderPeriodRanking(value='all',targetId='lux-public-ranking'){
+    const list=$(targetId);if(!list)return;
     const [period,seasonId]=String(value||'all').split(':');
     if(!list.childElementCount)list.innerHTML='<p class="hub-empty lux-loading-placeholder">Calculando clasificación…</p>';
     list.classList.add('lux-list-refreshing');list.setAttribute('aria-busy','true');
@@ -644,8 +701,8 @@
       if($('lux-public-members'))$('lux-public-members').textContent=rows.length;
       if($('lux-public-wins'))$('lux-public-wins').textContent=rows.reduce((total,row)=>total+Number(row.victories_4v4||0),0);
       if($('lux-public-total'))$('lux-public-total').textContent=rows.reduce((total,row)=>total+Number(row.victories_total||0),0);
-      list.innerHTML=rows.length?rows.map((row,index)=>`<button type="button" class="lux-public-row lux-period-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index+1}</i>${avatar(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingStatsLine(row)}</small></div><em>${Number(row.performance_score||0)} pts</em></button>`).join(''):'<p class="hub-empty">No hay resultados aprobados en este periodo.</p>';
-    }catch(_){await core().renderPublic();await ensureRankingFilters();}
+      list.innerHTML=rows.length?rows.map((row,index)=>`<button type="button" class="lux-public-row lux-period-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index+1}</i>${avatar(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingStatsLine(row)}</small></div></button>`).join(''):'<p class="hub-empty">No hay resultados aprobados en este periodo.</p>';
+    }catch(_){if(targetId==='lux-public-ranking'){await core().renderPublic();await ensureRankingFilters();}else list.innerHTML='<p class="hub-empty">No se pudo cargar el ranking. Intenta de nuevo.</p>';}
     finally{list.classList.remove('lux-list-refreshing');list.removeAttribute('aria-busy');}
   }
 
@@ -698,13 +755,25 @@
     }catch(_){/* El enlace puede reintentarse tras iniciar sesión. */}
   }
 
+  async function createInviteLink(){
+    try{
+      const rows=await core().rpc('owner_create_invite',{p_label:'Invitacion LUX CLAN',p_hours:Number($('lux-invite-hours').value||72),p_max_uses:Number($('lux-invite-uses').value||1)});
+      const row=Array.isArray(rows)?rows[0]:rows,url=new URL('./',location.href);url.searchParams.set('invite',row.invite_token);
+      $('lux-invite-output').textContent=`Vence: ${fmtDate(row.expires_at)}\n${url.href}`;
+      await navigator.clipboard?.writeText(url.href).catch(()=>{});toast('✅ ENLACE CREADO Y COPIADO');
+    }catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
+  }
+
   function install(){
     state.core=window.luxSupabase?._core;if(!state.core)return;
     ensurePanels();syncProfileFields();
     const originalPublicPlayer=window.luxSupabase.openPublicPlayer;
     window.luxSupabase.openPublicPlayer=async playerId=>{await originalPublicPlayer(playerId);injectShareAction(playerId);};
     const originalOpenRanking=window.luxSupabase.openRanking;
-    window.luxSupabase.openRanking=async context=>{await originalOpenRanking(context);await ensureRankingFilters();await renderPeriodRanking($('lux-ranking-period')?.value||'all');};
+    window.luxSupabase.openRanking=async context=>{
+      if(context==='member'||context==='admin')return openContextRanking(context);
+      await originalOpenRanking(null);await ensureRankingFilters();await renderPeriodRanking($('lux-ranking-period')?.value||'all');
+    };
     const observer=new MutationObserver(()=>ensureNotificationBell());
     observer.observe(document.body,{subtree:true,childList:true});ensureNotificationBell();
     refreshAdminSummary();
@@ -717,7 +786,7 @@
 
   window.luxPlatformV3={guardMember,afterProfileSaved,showProfileWhilePending,showMemberSection,navigateAdmin,toggleMatchPlayer,submitMatch,
     analyzeMatchCapture,assignMatchOcrPlayer,ignoreMatchOcrPlayer,reviewMembership,saveMembershipStatus,reviewMatch,toggleReviewMatch,selectAllPendingMatches,approveSelectedMatches,openMatchCorrection,saveMatchCorrection,createSeason,setSeasonState,respondEvent,createEvent,closeEvent,showRecommendedTeam,saveRecommendedTeam,createAnnouncement,archiveAnnouncement,
-    refreshAdminSummary,createInvite,mergeProfiles,restoreMember,purgeMember,saveAlias,disableAlias,downloadFullBackup,restoreFullBackup,
+    refreshAdminSummary,createInvite:createInviteLink,copyGeneralJoinLink,saveAccessMode,mergeProfiles,restoreMember,purgeMember,saveAlias,disableAlias,downloadFullBackup,restoreFullBackup,
     toggleNotifications,markNotificationsRead,shareCurrentProfile,copyCurrentProfile,showProfileQr,renderPeriodRanking};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();

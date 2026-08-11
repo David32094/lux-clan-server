@@ -12,7 +12,7 @@
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const toast = message => window.showToast?.(message);
-  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, profileDraftDirty:false, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', navigationSerial:0, pendingReviews:0, pendingRequests:0, pendingMatches:0, authStatus:'checking', memberRenderedAt:0, adminRenderedAt:0 };
+  const state = { session:null, user:null, role:'member', isStaff:false, isLeader:false, isOwner:false, profile:null, pendingAvatar:null, profileDraftDirty:false, directory:new Map(), publicDirectory:new Map(), publicPlates:new Map(), ranking:new Map(), roles:new Map(), editorBack:'member', navigationContext:null, adminSection:'home', navigationSerial:0, pendingReviews:0, pendingRequests:0, pendingMatches:0, accessMode:'open', authStatus:'checking', memberRenderedAt:0, adminRenderedAt:0 };
   let setScreenBase = null;
   let authReadyPromise = null;
   let refreshPromise = null;
@@ -638,6 +638,11 @@
     const memberDescription = memberChoice?.querySelector('small');
     if (memberAction) memberAction.textContent = state.authStatus === 'checking' ? 'REVISANDO…' : state.user ? 'ABRIR →' : 'ENTRAR →';
     if (memberDescription) memberDescription.textContent = state.user ? 'Tu sesión ya está abierta en este navegador' : 'Mi perfil, mi banner y mis victorias';
+    if (memberDescription && !state.user) memberDescription.textContent = state.accessMode === 'open'
+      ? 'Entra con Google y completa tu perfil'
+      : state.accessMode === 'invite_only'
+        ? 'Se necesita un enlace de invitacion'
+        : 'Registrate y espera la aprobacion del clan';
     const leaderChoice = document.querySelector('.hub-choice.leader');
     const leaderAction = leaderChoice?.querySelector(':scope > b');
     if (leaderAction) leaderAction.textContent = state.authStatus === 'checking' ? 'REVISANDO…' : state.isStaff ? 'ABRIR →' : 'ENTRAR →';
@@ -935,11 +940,13 @@
 
   async function renderPublic() {
     try {
-      const [ranking, plates, clanDirectory] = await Promise.all([
+      const [ranking, plates, clanDirectory, accessSettings] = await Promise.all([
         rpc('get_public_ranking', {}, false),
         rpc('get_public_plate_ranking', {}, false),
-        state.user ? rpc('get_clan_directory').catch(() => []) : Promise.resolve([])
+        state.user ? rpc('get_clan_directory').catch(() => []) : Promise.resolve([]),
+        rpc('get_clan_access_settings', {}, false).catch(() => [{ access_mode:'approval' }])
       ]);
+      state.accessMode = accessSettings?.[0]?.access_mode || accessSettings?.access_mode || 'approval';
       const all = Array.isArray(ranking) ? ranking : [];
       const memberRows = Array.isArray(clanDirectory) && clanDirectory.length ? clanDirectory : all;
       state.publicDirectory = new Map(memberRows.map(row => [row.player_id, row]));
@@ -951,7 +958,8 @@
       if ($('lux-public-total')) $('lux-public-total').textContent = total;
       if ($('lux-public-podium')) $('lux-public-podium').innerHTML = all.slice(0, 3).map((row, index) => `<button type="button" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-podium-avatar')}<strong>${esc(row.display_name)}</strong><small>${row.victories_total} victorias aprobadas</small><em>VER PERFIL</em></button>`).join('') || '<p class="hub-empty">Todavía no hay resultados confirmados.</p>';
       if ($('lux-public-ranking')) $('lux-public-ranking').innerHTML = all.map((row, index) => `<button type="button" class="lux-public-row" aria-label="Abrir perfil de ${esc(row.display_name)}" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></div></button>`).join('') || '<p class="hub-empty">El ranking aparecerá al aprobarse victorias.</p>';
-      renderPublicPlates(plates || []);
+      // Las placas conservan su apartado propio. El ranking general muestra
+      // una sola clasificacion basada en partidas aprobadas.
       renderMemberTop(all);
       renderMemberDirectory();
       renderNavigation();
@@ -1386,6 +1394,26 @@
       await Promise.all([renderAdmin(), renderPublic()]);
     } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
   }
+  function compactPlayerStats(member, options = {}) {
+    const modal = $('hub-modal-body');
+    const grid = modal?.querySelector('.lux-player-stats');
+    if (!modal || !grid || grid.closest('.lux-profile-stat-details')) return;
+    const total = Number(options.total ?? member.victories_total ?? 0);
+    const four = Number(options.four ?? member.victories_4v4 ?? 0);
+    const matches = Number(options.matches ?? member.matches_played ?? total);
+    const plateStats = state.publicPlates.get(member.player_id || member.id) || {};
+    const plates = Number(options.plates ?? plateStats.plates_total ?? plateStats.plate_count ?? 0);
+    const keyStats = document.createElement('section');
+    keyStats.className = 'lux-profile-key-stats';
+    keyStats.innerHTML = `<article><b>${total}</b><small>VICTORIAS</small></article><article><b>${four}</b><small>EN 4V4</small></article><article><b>${matches}</b><small>PARTIDAS</small></article><article><b>${plates}</b><small>PLACAS</small></article>`;
+    const details = document.createElement('details');
+    details.className = 'lux-profile-stat-details';
+    details.innerHTML = '<summary>VER TODAS LAS ESTADISTICAS <small>MODOS, PLACAS Y RENDIMIENTO</small></summary>';
+    grid.before(keyStats);
+    grid.before(details);
+    details.appendChild(grid);
+  }
+
   async function openPublicPlayer(id) {
     if (!state.publicDirectory.size) await renderPublic();
     const member = state.publicDirectory.get(id);
@@ -1400,7 +1428,8 @@
       <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL VERIFICADO</span><h3>Actividad aprobada</h3><p>El correo y los controles administrativos siguen siendo privados. Solo se publican victorias aprobadas y lecturas del panel confirmadas por una líder.</p>${plateCount || Number(plateStats.glory_total || 0) ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER HISTORIAL DE PLACAS</button>` : ''}</section>
       <div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS PÚBLICAS</span><h3>Victorias aprobadas</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div>
       <section class="hub-modal-gallery lux-public-victory-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · APROBADA<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}</figcaption></figure>`).join('') : '<p class="hub-empty">Todavía no hay capturas aprobadas.</p>'}</section>`;
-    $('hub-modal').hidden = false;
+    compactPlayerStats(member);
+    $('hub-modal').hidden = false; // perfil publico
     document.body.classList.add('hub-no-scroll');
   }
   async function openPlayer(id) {
@@ -1413,6 +1442,7 @@
     const pending = victories.filter(row => row.status === 'pending').length;
     const bannerAction = `<button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')">DESCARGAR BANNER OFICIAL</button>`;
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><div class="lux-player-actions">${bannerAction}${removalButton(member)}</div></div></header><section class="hub-modal-stats lux-player-stats"><div><b>${stats['1v1']}</b><small>1V1</small></div><div><b>${stats['2v2']}</b><small>2V2</small></div><div><b>${stats['3v3']}</b><small>3V3</small></div><div><b>${stats['4v4']}</b><small>4V4</small></div><div><b>${stats.Otro}</b><small>OTRAS</small></div><div><b>${stats.total}</b><small>APROBADAS</small></div><div class="lux-pending-stat"><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
+    compactPlayerStats(member, { total:stats.total, four:stats['4v4'], matches:victories.length, winRate:victories.length ? Math.round(stats.total * 100 / victories.length) : 0 });
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }

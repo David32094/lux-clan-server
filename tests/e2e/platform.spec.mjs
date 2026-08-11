@@ -19,9 +19,10 @@ async function mockSupabase(page, { profile=activeProfile, role='member' }={}) {
         primary_game_role:payload.p_primary_game_role, secondary_game_role:payload.p_secondary_game_role, experience_level:payload.p_experience_level, onboarding_complete:true };
       return json(currentProfile);
     }
-    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []);
-    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory')) return json(currentProfile ? [currentProfile] : []);
+    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking') || url.pathname.includes('/rest/v1/rpc/get_public_ranking')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []);
+    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory') || url.pathname.includes('/rest/v1/rpc/get_clan_directory')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id }] : []);
     if (url.pathname.includes('/rest/v1/rpc/get_period_ranking')) return json([]);
+    if (url.pathname.includes('/rest/v1/rpc/get_clan_access_settings')) return json([{ access_mode:'open', updated_at:new Date().toISOString() }]);
     if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL:'/object/sign/mock' });
     if (url.pathname.includes('/rest/v1/rpc/')) return json([]);
     if (request.method() === 'POST' || request.method() === 'PATCH' || request.method() === 'DELETE') return json([]);
@@ -193,6 +194,67 @@ test('el lector de partidas prepara marcador, resultado y jugador conocido', asy
   expect(parsed.scoreAgainst).toBe(4);
   expect(parsed.matched[0]?.playerId).toBe(user.id);
   expect(parsed.matched[0]?.damage).toBe(5791);
+});
+
+test('el lector separa aliados y rivales en una captura de Free Fire', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => typeof window.luxMatchOCR?.parseResult)).toBe('function');
+  const parsed = await page.evaluate(() => window.luxMatchOCR.parseResult([
+    { text:'VICTORIA 7 VS 3', confidence:96, side:'unknown' },
+    { text:'DAVID IA LUX UP 9/3/1 3001', confidence:91, side:'left' },
+    { text:'Aaraon 10 LUX UP 5/4/1 1569', confidence:88, side:'left' },
+    { text:'LX_MIKELITO LUX UP 2/7/3 1268', confidence:90, side:'right' }
+  ], 'VICTORIA 7 VS 3', { members:[
+    { id:'david', display_name:'DAVID IA' },
+    { id:'aaron', display_name:'Aaraon 10' },
+    { id:'mikelito', display_name:'LX_MIKELITO' }
+  ], aliases:[], mode:'4v4' }));
+  expect(parsed.teamSide).toBe('left');
+  expect(parsed.scoreFor).toBe(7);
+  expect(parsed.scoreAgainst).toBe(3);
+  expect(parsed.matched.map(row => row.playerId)).toEqual(expect.arrayContaining(['david','aaron']));
+  expect(parsed.matched.map(row => row.playerId)).not.toContain('mikelito');
+});
+
+test('el ranking conserva la misma cabecera de integrante y administrador', async ({ page }) => {
+  await mockSupabase(page, { role:'owner' });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+
+  await page.evaluate(() => window.luxSupabase.openMember('home'));
+  await page.locator('#hub-member .hub-nav').evaluate(node => { node.dataset.rankingMarker='member'; });
+  await page.evaluate(() => window.luxSupabase.openRanking('member'));
+  await expect(page.locator('#lux-member-ranking-panel')).toBeVisible();
+  await expect(page.locator('#hub-member .hub-nav')).toHaveAttribute('data-ranking-marker','member');
+
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await page.locator('#hub-admin .hub-nav').evaluate(node => { node.dataset.rankingMarker='admin'; });
+  await page.evaluate(() => window.luxSupabase.openRanking('admin'));
+  await expect(page.locator('#lux-admin-ranking-panel')).toBeVisible();
+  await expect(page.locator('#hub-admin .hub-nav')).toHaveAttribute('data-ranking-marker','admin');
+});
+
+test('el perfil muestra resumen corto y oculta el desglose inicialmente', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+  await page.evaluate(async id => { await window.luxSupabase._core.renderPublic(); await window.luxSupabase.openPublicPlayer(id); }, user.id);
+  await expect(page.locator('.lux-profile-key-stats')).toBeVisible();
+  await expect(page.locator('.lux-profile-key-stats article')).toHaveCount(4);
+  await expect(page.locator('.lux-profile-stat-details')).not.toHaveAttribute('open');
+  await expect(page.locator('.lux-profile-stat-details .lux-public-player-stats')).toBeHidden();
+});
+
+test('el owner ve el enlace general y los tres modos de acceso', async ({ page }) => {
+  await mockSupabase(page, { role:'owner' });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxPlatformV3.navigateAdmin('operations'));
+  await expect(page.locator('#lux-access-control')).toBeVisible();
+  await expect(page.locator('#lux-access-mode')).toHaveValue('open');
+  await expect(page.locator('#lux-access-mode option')).toHaveCount(3);
+  await expect(page.locator('#lux-access-control code')).toContainText('http://127.0.0.1');
 });
 
 test('placas y banners cargan sin depender de archivos incrustados', async ({ page }) => {

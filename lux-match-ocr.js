@@ -33,6 +33,7 @@
     add(spaced);
     add(spaced.replace(/\s+\d{1,3}$/u, ''));
     const tokens = spaced.split(' ').filter(Boolean);
+    tokens.filter(token => token.length >= 4).forEach(add);
     if (tokens.length > 1 && /^(?:LX|LUX|GPA|IAM|TEAM|CLAN)$/u.test(tokens[0])) add(tokens.slice(1).join(' '));
     [...variants].forEach(candidate => {
       add(candidate.replace(/\d{1,3}$/u, ''));
@@ -92,23 +93,59 @@
     });
   }
 
-  async function prepareImage(file) {
-    const image = await loadImage(file);
-    const scale = Math.min(2, Math.max(1, 1900 / image.naturalWidth));
+  function prepareRegion(image, region={ x:0, y:0, width:1, height:1 }, targetWidth=1900, treatment='inverted') {
+    const sourceX = Math.round(image.naturalWidth * region.x);
+    const sourceY = Math.round(image.naturalHeight * region.y);
+    const sourceWidth = Math.max(1, Math.round(image.naturalWidth * region.width));
+    const sourceHeight = Math.max(1, Math.round(image.naturalHeight * region.height));
+    const scale = Math.min(3.2, Math.max(1, targetWidth / sourceWidth));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
     const context = canvas.getContext('2d', { willReadFrequently:true, alpha:false });
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+    if (treatment === 'color') return canvas;
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
     for (let index = 0; index < pixels.data.length; index += 4) {
       const gray = pixels.data[index] * .299 + pixels.data[index + 1] * .587 + pixels.data[index + 2] * .114;
-      const contrasted = Math.max(0, Math.min(255, (gray - 118) * 1.85 + 132));
-      const value = 255 - contrasted;
+      if (treatment === 'whiteText') {
+        const value = gray >= 185 ? 0 : 255;
+        pixels.data[index] = pixels.data[index + 1] = pixels.data[index + 2] = value;
+        continue;
+      }
+      const contrasted = Math.max(0, Math.min(255, (gray - 112) * 2.05 + 136));
+      const value = treatment === 'gray' ? contrasted : 255 - contrasted;
       pixels.data[index] = pixels.data[index + 1] = pixels.data[index + 2] = value;
     }
     context.putImageData(pixels, 0, 0);
     return canvas;
+  }
+
+  async function prepareImages(file) {
+    const image = await loadImage(file);
+    const full = prepareRegion(image, { x:0, y:0, width:1, height:1 }, 2000);
+    if (image.naturalWidth / image.naturalHeight < 1.35) return { full, teams:[] };
+
+    // En la pantalla final de Free Fire las filas de ambos equipos aparecen
+    // en la franja central. Leer cada mitad por separado evita que Tesseract
+    // mezcle el nombre de un aliado con las cifras de un rival situado en la
+    // misma línea horizontal.
+    const table = { y:.405, height:.205 };
+    const left = { x:.045, y:table.y, width:.445, height:table.height };
+    const right = { x:.505, y:table.y, width:.445, height:table.height };
+    return {
+      full,
+      teams:[
+        { side:'left', variant:'color', canvas:prepareRegion(image, left, 1750, 'color') },
+        { side:'left', variant:'inverted', canvas:prepareRegion(image, left, 1750, 'inverted') },
+        { side:'right', variant:'color', canvas:prepareRegion(image, right, 1750, 'color') },
+        { side:'right', variant:'inverted', canvas:prepareRegion(image, right, 1750, 'inverted') }
+      ],
+      scoreDigits:[
+        { side:'left', canvas:prepareRegion(image, { x:.405, y:.285, width:.06, height:.105 }, 650, 'whiteText') },
+        { side:'right', canvas:prepareRegion(image, { x:.515, y:.285, width:.06, height:.105 }, 650, 'whiteText') }
+      ]
+    };
   }
 
   function collectWords(data) {
@@ -126,7 +163,7 @@
     return words;
   }
 
-  function clusterLines(words, height) {
+  function clusterLines(words, height, side='unknown') {
     const tolerance = Math.max(14, height * .018), groups = [];
     words.map(word => ({ ...word, x:(word.bbox.x0 + word.bbox.x1) / 2, y:(word.bbox.y0 + word.bbox.y1) / 2 }))
       .sort((a, b) => a.y - b.y || a.x - b.x).forEach(word => {
@@ -140,7 +177,8 @@
       return {
         text:group.words.map(word => word.text).join(' ').replace(/\s+/g, ' ').trim(),
         confidence:Math.round(group.words.reduce((sum, word) => sum + word.confidence, 0) / Math.max(1, group.words.length)),
-        y:group.y
+        y:group.y,
+        side
       };
     }).filter(line => line.text.length >= 2);
   }
@@ -192,6 +230,24 @@
     return { ...best, auto:best.score >= .72 && best.score - (second?.score || 0) >= .07 };
   }
 
+  function selectClanSide(lines, candidates, currentPlayerId='') {
+    const sides = ['left','right'].map(side => {
+      const sideLines = lines.filter(line => line.side === side);
+      let recognized = 0, strong = 0, clanMarks = 0;
+      sideLines.forEach(line => {
+        const name = cleanPlayerText(line.text), match = bestMatch(name, candidates);
+        if ((match?.score || 0) >= .5) recognized += match.score;
+        if (match?.auto) strong += 1;
+        if (match?.playerId === currentPlayerId && match.score >= .58) recognized += 6;
+        if (/\b(?:LUX|LX)[ _-]?(?:UP)?\b/i.test(line.text)) clanMarks += 1;
+      });
+      return { side, lines:sideLines, score:strong * 3 + recognized * 2 + clanMarks * .35 };
+    });
+    const ordered = sides.sort((a,b) => b.score - a.score);
+    if (!ordered[0]?.lines.length || ordered[0].score < .9) return { side:'unknown', lines };
+    return ordered[0];
+  }
+
   function detectScore(text) {
     const match = String(text || '').replace(/[Oo]/g, '0').match(/(?:^|\s)(\d{1,2})\s*(?:VS|V5|X|[-–])\s*(\d{1,2})(?:\s|$)/i);
     return match ? { scoreFor:safeNumber(match[1],999), scoreAgainst:safeNumber(match[2],999), confidence:82 } : null;
@@ -202,25 +258,45 @@
     const result = /VICTORIA|BOOYAH/.test(upper) ? 'win' : /DERROTA|DEFEAT/.test(upper) ? 'loss' : /EMPATE|DRAW/.test(upper) ? 'draw' : (context?.result || 'win');
     const score = lines.map(line => detectScore(line.text)).find(Boolean);
     const detectedMode = ['4v4','3v3','2v2','1v1'].find(mode => new RegExp(mode.replace('v','\\s*[vVxX]\\s*')).test(rawText));
-    const candidates = candidateDirectory(context), used = new Set(), matched = [], unmatched = [];
+    const candidates = candidateDirectory(context), matchedByPlayer = new Map(), unmatched = [];
+    const selectedTeam = selectClanSide(lines, candidates, context?.currentPlayerId);
+    const playerLines = selectedTeam.lines.length ? selectedTeam.lines : lines;
 
-    lines.forEach((line, index) => {
+    playerLines.forEach((line, index) => {
       const stats = lineStats(line.text), gameName = cleanPlayerText(line.text);
       if (gameName.length < 2) return;
       const match = bestMatch(gameName, candidates);
-      if (match?.auto && !used.has(match.playerId)) {
-        used.add(match.playerId);
-        matched.push({ playerId:match.playerId, gameName:match.gameName, detectedName:gameName, matchedBy:match.source, confidence:Math.round(match.score * 100), ...stats });
-      } else if ((stats.confirmed || (match?.score || 0) >= .5) && unmatched.length < 8) {
+      if (match?.auto) {
+        const detectedName = match.score >= .92 ? gameName : match.gameName;
+        const candidate = { playerId:match.playerId, gameName, detectedName, matchedBy:match.source, confidence:Math.round(match.score * 100), ...stats };
+        const current = matchedByPlayer.get(match.playerId);
+        const candidateQuality = (stats.confirmed ? 200 : 0) + match.score * 100 + line.confidence / 10;
+        const currentQuality = current ? (current.confirmed ? 200 : 0) + current.confidence + (current.ocrConfidence || 0) / 10 : -1;
+        if (!current || candidateQuality > currentQuality) matchedByPlayer.set(match.playerId, { ...candidate, ocrConfidence:line.confidence });
+      } else if ((stats.confirmed || (match?.score || 0) >= .58) && unmatched.length < 4) {
         unmatched.push({ id:`ocr-${index}`, gameName, suggestionId:match?.playerId || '', confidence:Math.round((match?.score || line.confidence / 100) * 100), ...stats });
       }
+    });
+
+    let scoreFor = score?.scoreFor ?? (result === 'win' ? 1 : 0);
+    let scoreAgainst = score?.scoreAgainst ?? (result === 'loss' ? 1 : 0);
+    if (selectedTeam.side === 'right' && score) [scoreFor, scoreAgainst] = [scoreAgainst, scoreFor];
+    const uniqueUnmatched = new Map();
+    unmatched.forEach(entry => {
+      const key = entry.suggestionId
+        ? `suggestion:${entry.suggestionId}:${entry.kills}:${entry.deaths}:${entry.damage}`
+        : `name:${normalizeName(entry.gameName)}:${entry.kills}:${entry.deaths}:${entry.damage}`;
+      const current = uniqueUnmatched.get(key);
+      if (!current || Number(entry.confidence || 0) > Number(current.confidence || 0)) uniqueUnmatched.set(key, entry);
     });
 
     return {
       rawText:String(rawText || '').slice(0, 8000), confidence:Math.round(lines.reduce((sum, line) => sum + line.confidence, 0) / Math.max(1, lines.length)),
       mode:detectedMode || context?.mode || '4v4', result,
-      scoreFor:score?.scoreFor ?? (result === 'win' ? 1 : 0), scoreAgainst:score?.scoreAgainst ?? (result === 'loss' ? 1 : 0),
-      scoreConfidence:score?.confidence || 0, matched:matched.slice(0, 4), unmatched
+      scoreFor, scoreAgainst,
+      scoreConfidence:score?.confidence || 0, teamSide:selectedTeam.side,
+      matched:[...matchedByPlayer.values()].slice(0, 4).map(({ ocrConfidence, ...entry }) => entry),
+      unmatched:[...uniqueUnmatched.values()].slice(0, 4)
     };
   }
 
@@ -229,13 +305,31 @@
     let worker;
     try {
       onProgress(5, 'Preparando la captura');
-      const [Tesseract, image] = await Promise.all([loadTesseract(), prepareImage(file)]);
+      const [Tesseract, images] = await Promise.all([loadTesseract(), prepareImages(file)]);
       worker = await Tesseract.createWorker('eng', 1, { logger:message => {
-        if (message.status === 'recognizing text') onProgress(22 + Math.round((message.progress || 0) * 67), `Leyendo marcador, nombres y numeros ${Math.round((message.progress || 0) * 100)}%`);
+        if (message.status === 'recognizing text') onProgress(20 + Math.round((message.progress || 0) * 25), `Leyendo la pantalla ${Math.round((message.progress || 0) * 100)}%`);
       }});
-      const result = await worker.recognize(image, {}, { blocks:true, text:true });
-      const words = collectWords(result.data), lines = clusterLines(words, image.height);
-      const rawText = result.data?.text || lines.map(line => line.text).join('\n');
+      await worker.setParameters?.({ preserve_interword_spaces:'1' });
+      const result = await worker.recognize(images.full, {}, { blocks:true, text:true });
+      const fullWords = collectWords(result.data), fullLines = clusterLines(fullWords, images.full.height);
+      const teamLines = [], scoreLines = [], scoreDigits = { left:[], right:[] };
+      for (let index = 0; index < images.teams.length; index += 1) {
+        const region = images.teams[index];
+        onProgress(44 + index * 10, `Separando ${region.side === 'left' ? 'el equipo izquierdo' : 'el equipo derecho'}`);
+        const teamResult = await worker.recognize(region.canvas, {}, { blocks:true, text:true });
+        teamLines.push(...clusterLines(collectWords(teamResult.data), region.canvas.height, region.side));
+      }
+      await worker.setParameters?.({ tessedit_pageseg_mode:'10', tessedit_char_whitelist:'0123456789' });
+      for (let index = 0; index < (images.scoreDigits || []).length; index += 1) {
+        const digitRegion = images.scoreDigits[index];
+        onProgress(84 + index * 4, 'Leyendo el marcador');
+        const scoreResult = await worker.recognize(digitRegion.canvas, {}, { blocks:true, text:true });
+        const digit = String(scoreResult.data?.text || '').match(/\d{1,2}/)?.[0];
+        if (digit) scoreDigits[digitRegion.side].push(digit);
+      }
+      if (scoreDigits.left[0] && scoreDigits.right[0]) scoreLines.push({ text:`${scoreDigits.left[0]} VS ${scoreDigits.right[0]}`, confidence:90, y:0, side:'unknown' });
+      const lines = teamLines.length ? [...fullLines, ...teamLines, ...scoreLines] : [...fullLines, ...scoreLines];
+      const rawText = [result.data?.text, ...teamLines.map(line => line.text), ...scoreLines.map(line => line.text)].filter(Boolean).join('\n');
       onProgress(94, 'Comparando nombres con los integrantes');
       const parsed = parseResult(lines, rawText, context);
       onProgress(100, 'Borrador listo para revisar');
