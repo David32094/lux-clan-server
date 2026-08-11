@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile, stat } from 'node:fs/promises';
+
+const read = path => readFile(new URL(`../../${path}`, import.meta.url), 'utf8');
+
+test('la entrada es ligera y las plantillas no siguen incrustadas', async () => {
+  const html = await read('LUX_CLAN_EDITOR_BY.DAVID.XIT.html');
+  const info = await stat(new URL('../../LUX_CLAN_EDITOR_BY.DAVID.XIT.html', import.meta.url));
+  assert.ok(info.size < 250_000, `HTML demasiado pesado: ${info.size}`);
+  assert.match(html, /\.\/INTEGRANTES\/base\.png/);
+  assert.match(html, /\.\/ENFRETAMIENTOS\/base\.png/);
+  assert.ok(!/const\s+INTEG_TEMPLATE\s*=\s*["']data:image/.test(html));
+});
+
+test('el editor anterior solo redirige a la versión oficial', async () => {
+  const html = await read('LUX_CLAN_EDITOR.html');
+  assert.match(html, /LUX_CLAN_EDITOR_BY\.DAVID\.XIT\.html/);
+  assert.ok(html.length < 2_000);
+});
+
+test('el registro, los roles y el antifraude se resuelven en Supabase', async () => {
+  const membership = await read('supabase/migrations/20260811_membership_security_v3.sql');
+  const security = await read('supabase/migrations/20260811_seasons_notifications_v3.sql');
+  assert.match(membership, /complete_my_onboarding/i);
+  assert.match(membership, /membership_status/i);
+  assert.match(membership, /enable row level security/i);
+  assert.match(security, /evidence_visual_hashes/i);
+  assert.match(security, /visual_hash_distance/i);
+  assert.match(security, /submit_victory_secure/i);
+  assert.match(security, /interval '24 hours'/i);
+});
+
+test('la plataforma incluye partidos, temporadas, convocatorias y operaciones', async () => {
+  const sql = `${await read('supabase/migrations/20260811_competition_events_v3.sql')}\n${await read('supabase/migrations/20260811_operations_backup_v3.sql')}\n${await read('supabase/migrations/20260811_seasons_notifications_v3.sql')}`;
+  for (const feature of ['public.matches','public.match_participants','public.seasons','public.clan_events','public.game_player_aliases','owner_export_platform_backup','owner_restore_platform_backup','owner_merge_member_profiles','audit_log','notifications']) {
+    assert.match(sql, new RegExp(feature, 'i'), `Falta ${feature}`);
+  }
+});
+
+test('el OCR conserva confianza por campo y admite varias capturas', async () => {
+  const ocr = await read('prototipo-placas-ocr.js');
+  assert.match(ocr, /files:\[\]/);
+  assert.match(ocr, /confidence/i);
+  assert.match(ocr, /lux-confidence-low/i);
+  assert.match(ocr, /gloryWeekConfidence/i);
+});
+
+test('no se publicó ninguna clave privada de Supabase', async () => {
+  const files = ['index.html','LUX_CLAN_EDITOR_BY.DAVID.XIT.html','prototipo-supabase.js','supabase-client-config.js'];
+  for (const file of files) assert.ok(!(await read(file)).includes('sb_secret_'), `Clave privada en ${file}`);
+});

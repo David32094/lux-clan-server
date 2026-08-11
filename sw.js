@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v49';
+const CACHE_NAME = 'lux-clan-editor-offline-v51';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -12,7 +12,19 @@ const APP_SHELL = [
   './prototipo-placas.js',
   './prototipo-placas-ocr.js',
   './lux-simple-ui.css',
+  './lux-platform-v3.js',
+  './lux-platform-v3.css',
+  './vendor/qrcode.js',
   './ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png'
+];
+
+// Estas plantillas son pesadas. Se descargan después de mostrar la interfaz,
+// de modo que la primera pantalla abra rápido y el editor siga disponible sin
+// conexión una vez terminada la preparación en segundo plano.
+const EDITOR_ASSETS = [
+  './INTEGRANTES/base.png',
+  './ENFRETAMIENTOS/base.png',
+  './ENFRETAMIENTOS/OVERLAY%20POR%20ENCIMA%20DE%20LA%20FOTO%20DEL%20RESULTADO.png'
 ];
 
 async function withMobileTouchFix(response) {
@@ -47,6 +59,16 @@ self.addEventListener('activate', event => {
         .filter(key => key.startsWith('lux-clan-editor-') && key !== CACHE_NAME)
         .map(key => caches.delete(key))))
       .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'CACHE_EDITOR_ASSETS') return;
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(EDITOR_ASSETS))
+      .then(() => event.source?.postMessage?.({ type: 'EDITOR_ASSETS_READY' }))
+      .catch(error => console.warn('No se pudieron preparar las plantillas offline:', error))
   );
 });
 

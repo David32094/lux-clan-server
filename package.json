@@ -1,0 +1,17 @@
+{
+  "name": "lux-clan-server",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-site.mjs",
+    "check": "node --check prototipo-lider.js && node --check prototipo-clan-hub.js && node --check prototipo-accesos.js && node --check prototipo-placas.js && node --check prototipo-placas-ocr.js && node --check prototipo-supabase.js && node --check lux-platform-v3.js && node --check sw.js",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test": "npm run check && npm run test:unit && npm run build && npm run test:e2e",
+    "preview:test": "node tests/server.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

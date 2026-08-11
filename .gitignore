@@ -10,3 +10,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 Thumbs.db
+.site/
+.tmp-qrcode-package/
+test-results/
+playwright-report/
