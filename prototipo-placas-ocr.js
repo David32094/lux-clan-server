@@ -12,7 +12,7 @@
     const date = new Date(), offset = date.getTimezoneOffset();
     return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
   };
-  const state = { file:null, hash:'', objectUrl:'', canvas:null, rows:[], members:[], aliases:new Map(), ready:false, busy:false };
+  const state = { file:null, files:[], hash:'', captures:[], objectUrl:'', canvas:null, rows:[], members:[], aliases:new Map(), ready:false, busy:false };
   let scriptPromise = null;
 
   const LOOKALIKE_CHARS = {
@@ -161,6 +161,32 @@
     return { canvas, offsetX:x, offsetY:y };
   }
 
+  function cropMetricCell(source, topRatio, bottomRatio, targetRatio, binary = false) {
+    const rowTop = source.height * topRatio;
+    const rowHeight = source.height * (bottomRatio - topRatio);
+    const width = Math.max(32, Math.round(source.width * .092));
+    const height = Math.max(20, Math.round(rowHeight * .58));
+    const x = Math.max(0, Math.round(source.width * targetRatio - width / 2));
+    const y = Math.max(0, Math.round(rowTop + rowHeight * .21));
+    const scale = Math.max(3, Math.min(6, 180 / height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const context = canvas.getContext('2d', { alpha:false, willReadFrequently:true });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, x, y, width, height, 0, 0, canvas.width, canvas.height);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < image.data.length; index += 4) {
+      const gray = image.data[index] * .299 + image.data[index + 1] * .587 + image.data[index + 2] * .114;
+      const contrasted = Math.max(0, Math.min(255, (gray - 116) * 2.35 + 132));
+      const value = binary ? (gray >= 122 ? 0 : 255) : 255 - contrasted;
+      image.data[index] = image.data[index + 1] = image.data[index + 2] = value;
+    }
+    context.putImageData(image, 0, 0);
+    return canvas;
+  }
+
   function loadTesseract() {
     if (window.Tesseract?.createWorker) return Promise.resolve(window.Tesseract);
     if (scriptPromise) return scriptPromise;
@@ -228,7 +254,8 @@
   }
   function closestMetric(group, target, width) {
     const candidate = group.words.reduce((best, word) => Math.abs(word.x - width * target) < Math.abs((best?.x ?? Infinity) - width * target) ? word : best, null);
-    return candidate && Math.abs(candidate.x - width * target) < width * .075 ? candidate.value : 0;
+    const valid = candidate && Math.abs(candidate.x - width * target) < width * .075;
+    return { value:valid ? candidate.value : 0, confidence:valid ? Math.round(Number(candidate.confidence || 0)) : 0 };
   }
   function extractName(words, rowY, width, height) {
     const tolerance = Math.max(23, height * .042);
@@ -299,13 +326,21 @@
       const next = groups[index + 1]?.y ?? Math.min(height, group.y + height * .08);
       const top = index ? (previous + group.y) / 2 : Math.max(height * .07, group.y - (next - group.y) / 2);
       const bottom = index < groups.length - 1 ? (group.y + next) / 2 : Math.min(height, group.y + (group.y - previous) / 2);
+      const gloryWeek = closestMetric(group, .407, width);
+      const gloryTotal = closestMetric(group, .522, width);
+      const platesWeek = closestMetric(group, .648, width);
+      const platesTotal = closestMetric(group, .758, width);
       return {
         id:crypto.randomUUID?.() || `${Date.now()}-${index}`,
         gameName:extractName(words, group.y, width, height) || `Jugador ${index + 1}`,
-        gloryWeek:closestMetric(group, .407, width),
-        gloryTotal:closestMetric(group, .522, width),
-        platesWeek:closestMetric(group, .648, width),
-        platesTotal:closestMetric(group, .758, width),
+        gloryWeek:gloryWeek.value,
+        gloryTotal:gloryTotal.value,
+        platesWeek:platesWeek.value,
+        platesTotal:platesTotal.value,
+        gloryWeekConfidence:gloryWeek.confidence,
+        gloryTotalConfidence:gloryTotal.confidence,
+        platesWeekConfidence:platesWeek.confidence,
+        platesTotalConfidence:platesTotal.confidence,
         crop:cropRow(state.canvas, top / height, bottom / height),
         confidence:Math.round(group.words.reduce((sum, word) => sum + Number(word.confidence || 0), 0) / Math.max(1, group.words.length)),
         topRatio:top / height,
@@ -354,6 +389,45 @@
     return rows.map(matchRow);
   }
 
+  async function recognizeLowConfidenceMetrics(worker, Tesseract, rows) {
+    const fields = [
+      ['gloryWeek','gloryWeekConfidence',.407],['gloryTotal','gloryTotalConfidence',.522],
+      ['platesWeek','platesWeekConfidence',.648],['platesTotal','platesTotalConfidence',.758]
+    ];
+    await worker.setParameters({
+      tessedit_char_whitelist:'0123456789',
+      tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_WORD || '8',
+      preserve_interword_spaces:'0',user_defined_dpi:'300'
+    });
+    let pending = 0;
+    rows.forEach(row => fields.forEach(([field,confidence]) => {
+      const inconsistent = field === 'gloryTotal' ? row.gloryTotal < row.gloryWeek : field === 'platesTotal' ? row.platesTotal < row.platesWeek : false;
+      if (Number(row[confidence] || 0) < 72 || inconsistent || Number(row[field] || 0) === 0) pending += 1;
+    }));
+    let completed = 0;
+    for (const row of rows) {
+      for (const [field,confidence,target] of fields) {
+        const inconsistent = field === 'gloryTotal' ? row.gloryTotal < row.gloryWeek : field === 'platesTotal' ? row.platesTotal < row.platesWeek : false;
+        if (Number(row[confidence] || 0) >= 72 && !inconsistent && Number(row[field] || 0) !== 0) continue;
+        completed += 1;
+        progress(90 + Math.round((completed / Math.max(1,pending)) * 8), `Verificando número ${completed} de ${pending}…`);
+        let best = { value:Number(row[field] || 0), confidence:Number(row[confidence] || 0) };
+        for (const binary of [false,true]) {
+          try {
+            const cell = cropMetricCell(state.canvas,row.topRatio,row.bottomRatio,target,binary);
+            const result = await worker.recognize(cell,{}, { text:true });
+            const value = metricValue(result.data?.text);
+            const recognized = { value:value ?? 0,confidence:Number(result.data?.confidence || 0) };
+            if (value !== null && recognized.confidence > best.confidence) best = recognized;
+          } catch (_) {}
+        }
+        row[field] = best.value;
+        row[confidence] = Math.round(best.confidence);
+      }
+    }
+    return rows;
+  }
+
   function memberOptions(row) {
     const options = state.members.map(member => {
       const id = memberId(member), suggested = id === row.suggestionId && !row.playerId;
@@ -361,23 +435,29 @@
     }).join('');
     return `<option value=""${row.playerId ? '' : ' selected'}>— ¿QUIÉN ES ESTA PERSONA? —</option>${options}`;
   }
+  function metricClass(row, field) { return Number(row[`${field}Confidence`] || 0) < 65 ? ' class="lux-confidence-low"' : ''; }
+  function confidenceSummary(row) {
+    const values = ['nameConfidence','gloryWeekConfidence','gloryTotalConfidence','platesWeekConfidence','platesTotalConfidence'].map(field => Number(row[field] || 0));
+    const low = values.filter(value => value < 65).length;
+    return low ? `<span class="lux-confidence-note">⚠ Revisa ${low} ${low === 1 ? 'dato marcado' : 'datos marcados'}: el lector tuvo baja confianza.</span>` : '<span class="lux-confidence-good">✓ Lectura con buena confianza.</span>';
+  }
   function renderRows() {
     const target = $('lux-activity-rows');
     const review = $('lux-activity-review');
     if (!target || !review) return;
     review.hidden = false;
     target.innerHTML = state.rows.length ? state.rows.map((row, index) => `<article class="lux-activity-row${row.playerId ? '' : ' is-unmatched'}" data-row-id="${esc(row.id)}">
-      <div class="lux-activity-account">${row.crop ? `<img class="lux-activity-crop" src="${row.crop}" alt="Fila ${index + 1} detectada"/>` : '<span class="lux-activity-crop"></span>'}<label>NOMBRE EN EL JUEGO<input data-field="gameName" maxlength="80" value="${esc(row.gameName)}"/></label></div>
-      <div class="lux-activity-numbers"><input data-field="gloryWeek" inputmode="numeric" min="0" max="100000000" value="${row.gloryWeek}" aria-label="Gloria esta semana"/><input data-field="gloryTotal" inputmode="numeric" min="0" max="100000000" value="${row.gloryTotal}" aria-label="Gloria total"/></div>
-      <div class="lux-activity-numbers"><input data-field="platesWeek" inputmode="numeric" min="0" max="100000000" value="${row.platesWeek}" aria-label="Placas esta semana"/><input data-field="platesTotal" inputmode="numeric" min="0" max="100000000" value="${row.platesTotal}" aria-label="Placas total"/></div>
-      <div class="lux-activity-assign"><label>${row.playerId ? 'ASIGNADO A' : '¿QUIÉN ES ESTA PERSONA?'}<select data-field="playerId">${memberOptions(row)}</select></label><small>${row.matchedBy === 'alias' ? '✓ Cuenta reconocida de una captura anterior.' : row.matchedBy === 'profile' ? '✓ Coincide exactamente con el nombre web.' : row.playerId ? 'Se recordará esta cuenta para la próxima vez.' : 'Confirma el integrante antes de guardar.'}</small></div>
+      <div class="lux-activity-account">${row.crop ? `<img class="lux-activity-crop" src="${row.crop}" alt="Fila ${index + 1} detectada"/>` : '<span class="lux-activity-crop"></span>'}<label>${row.captureIndex != null ? `CAPTURA ${row.captureIndex + 1} · ` : ''}NOMBRE EN EL JUEGO<input data-field="gameName" maxlength="80" value="${esc(row.gameName)}"${Number(row.nameConfidence||0)<65?' class="lux-confidence-low"':''}/></label></div>
+      <div class="lux-activity-numbers"><input${metricClass(row,'gloryWeek')} data-field="gloryWeek" inputmode="numeric" min="0" max="100000000" value="${row.gloryWeek}" aria-label="Gloria esta semana"/><input${metricClass(row,'gloryTotal')} data-field="gloryTotal" inputmode="numeric" min="0" max="100000000" value="${row.gloryTotal}" aria-label="Gloria total"/></div>
+      <div class="lux-activity-numbers"><input${metricClass(row,'platesWeek')} data-field="platesWeek" inputmode="numeric" min="0" max="100000000" value="${row.platesWeek}" aria-label="Placas esta semana"/><input${metricClass(row,'platesTotal')} data-field="platesTotal" inputmode="numeric" min="0" max="100000000" value="${row.platesTotal}" aria-label="Placas total"/></div>
+      <div class="lux-activity-assign"><label>${row.playerId ? 'ASIGNADO A' : '¿QUIÉN ES ESTA PERSONA?'}<select data-field="playerId">${memberOptions(row)}</select></label><small>${row.matchedBy === 'alias' ? '✓ Cuenta reconocida de una captura anterior.' : row.matchedBy === 'profile' ? '✓ Coincide exactamente con el nombre web.' : row.playerId ? 'Se recordará esta cuenta para la próxima vez.' : 'Confirma el integrante antes de guardar.'}${confidenceSummary(row)}</small></div>
       <button class="lux-activity-remove" type="button" data-remove="${esc(row.id)}" aria-label="Eliminar fila">×</button>
     </article>`).join('') : '<p class="hub-empty">No hay filas. Agrégalas manualmente o prueba otra captura.</p>';
   }
 
   function addRow() {
     if (state.busy) return;
-    state.rows.push(matchRow({ id:crypto.randomUUID?.() || String(Date.now()), gameName:'', gloryWeek:0, gloryTotal:0, platesWeek:0, platesTotal:0, crop:'', confidence:0 }));
+    state.rows.push(matchRow({ id:crypto.randomUUID?.() || String(Date.now()), captureIndex:state.captures[0]?.sourceIndex ?? null, gameName:'', gloryWeek:0, gloryTotal:0, platesWeek:0, platesTotal:0, crop:'', confidence:0, nameConfidence:0, gloryWeekConfidence:0, gloryTotalConfidence:0, platesWeekConfidence:0, platesTotalConfidence:0 }));
     renderRows();
   }
   function updateRow(event) {
@@ -386,8 +466,14 @@
     const card = event.target.closest('[data-row-id]');
     const row = state.rows.find(item => item.id === card?.dataset?.rowId);
     if (!row) return;
-    if (['gloryWeek','gloryTotal','platesWeek','platesTotal'].includes(field)) row[field] = safeNumber(event.target.value);
-    else row[field] = event.target.value;
+    if (['gloryWeek','gloryTotal','platesWeek','platesTotal'].includes(field)) {
+      row[field] = safeNumber(event.target.value);
+      row[`${field}Confidence`] = 100;
+      event.target.classList.remove('lux-confidence-low');
+    } else {
+      row[field] = event.target.value;
+      if (field === 'gameName') row.nameConfidence = 100;
+    }
     if (field === 'playerId') { row.matchedBy = row.playerId ? 'manual' : ''; renderRows(); }
     else if (field === 'gameName' && event.type === 'change' && row.matchedBy !== 'manual') {
       Object.assign(row, matchRow({ ...row, playerId:'', matchedBy:'', suggestionId:'' }));
@@ -403,7 +489,7 @@
 
   function reset(clearFile = true) {
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
-    state.file = null; state.hash = ''; state.objectUrl = ''; state.canvas = null; state.rows = [];
+    state.file = null; state.files = []; state.hash = ''; state.captures = []; state.objectUrl = ''; state.canvas = null; state.rows = [];
     if (clearFile && $('lux-activity-file')) $('lux-activity-file').value = '';
     if ($('lux-activity-preview')) { $('lux-activity-preview').hidden = true; $('lux-activity-preview').innerHTML = ''; }
     if ($('lux-activity-review')) $('lux-activity-review').hidden = true;
@@ -436,7 +522,7 @@
     }
   }
 
-  async function analyze() {
+  async function analyzeLegacy() {
     if (state.busy) return;
     const file = $('lux-activity-file')?.files?.[0];
     if (!file || !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size <= 0 || file.size > MAX_FILE) {
@@ -483,6 +569,7 @@
       }));
       const extractedRows = extractRows(words.filter(word => metricValue(word.text) === null).concat(metricWords.length >= 4 ? metricWords : words), prepared);
       state.rows = extractedRows.length ? await recognizeRowNames(worker, Tesseract, extractedRows) : [];
+      if (state.rows.length) state.rows = await recognizeLowConfidenceMetrics(worker, Tesseract, state.rows);
       if (!state.rows.length) {
         addRow();
         toast('ℹ️ NO SE LEYERON LAS FILAS. PUEDES COMPLETARLAS MANUALMENTE');
@@ -504,31 +591,110 @@
     }
   }
 
+  async function analyzeCapture(file, captureIndex, totalCaptures, worker, Tesseract) {
+    const prefix = totalCaptures > 1 ? `Captura ${captureIndex + 1}/${totalCaptures}: ` : '';
+    progress(8, `${prefix}comprobando duplicados…`);
+    const hash = await hashFile(file);
+    if (await window.luxPlateActivityApi.exists(hash)) throw new Error(`${prefix}esta misma captura ya fue importada`);
+    state.canvas = await loadImage(file);
+    const prepared = ocrCanvas(state.canvas);
+    await worker.setParameters({ tessedit_char_whitelist:'', tessedit_pageseg_mode:Tesseract.PSM?.AUTO || '3', preserve_interword_spaces:'1' });
+    state.ocrStage = { start:16, span:34, label:`${prefix}leyendo la tabla` };
+    const result = await worker.recognize(prepared, {}, { blocks:true, text:true });
+    const words = collectWords(result.data);
+    state.ocrStage = { start:52, span:14, label:`${prefix}comprobando contadores` };
+    progress(52, `${prefix}comprobando los cuatro contadores…`);
+    const metricsCrop = cropMetrics(prepared);
+    await worker.setParameters({ tessedit_char_whitelist:'0123456789', tessedit_pageseg_mode:Tesseract.PSM?.SINGLE_BLOCK || '6', preserve_interword_spaces:'1' });
+    const metricResult = await worker.recognize(metricsCrop.canvas, {}, { blocks:true, text:true });
+    const metricWords = collectWords(metricResult.data).map(word => ({ ...word, bbox:{
+      x0:word.bbox.x0 + metricsCrop.offsetX, x1:word.bbox.x1 + metricsCrop.offsetX,
+      y0:word.bbox.y0 + metricsCrop.offsetY, y1:word.bbox.y1 + metricsCrop.offsetY
+    }}));
+    const extracted = extractRows(words.filter(word => metricValue(word.text) === null).concat(metricWords.length >= 4 ? metricWords : words), prepared);
+    let rows = extracted.length ? await recognizeRowNames(worker, Tesseract, extracted) : [];
+    if (rows.length) rows = await recognizeLowConfidenceMetrics(worker, Tesseract, rows);
+    rows.forEach(row => { row.captureIndex = captureIndex; });
+    return { file, hash, rows, sourceIndex:captureIndex };
+  }
+
+  async function analyze() {
+    if (state.busy) return;
+    const files = [...($('lux-activity-file')?.files || [])];
+    if (!files.length || files.length > 12 || files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size <= 0 || file.size > MAX_FILE)) {
+      toast('⚠️ ELIGE ENTRE 1 Y 12 CAPTURAS JPG, PNG O WEBP DE HASTA 10 MB'); return;
+    }
+    if (!state.ready) await prepare();
+    if (!state.ready) return;
+    setBusy(true); reset(false); state.files = files; state.file = files[0]; setBusy(true); previewFile(files[0]);
+    const previewNote = $('lux-activity-preview')?.querySelector('small');
+    if (previewNote && files.length > 1) previewNote.textContent = `${files.length} capturas seleccionadas · se revisarán juntas`;
+    let worker = null;
+    try {
+      const Tesseract = await loadTesseract();
+      worker = await Tesseract.createWorker('eng', 1, { logger:message => {
+        if (message.status === 'recognizing text') {
+          const stage = state.ocrStage || { start:15, span:70, label:'Leyendo capturas' };
+          progress(stage.start + Math.round((message.progress || 0) * stage.span), `${stage.label}… ${Math.round((message.progress || 0) * 100)}%`);
+        }
+      }});
+      state.captures = [];
+      const skipped = [];
+      for (let index = 0; index < files.length; index += 1) {
+        try { state.captures.push(await analyzeCapture(files[index],index,files.length,worker,Tesseract)); }
+        catch (error) {
+          if (/ya fue importada|misma captura/i.test(String(error?.message||''))) skipped.push(index+1);
+          else throw error;
+        }
+      }
+      state.rows = state.captures.flatMap(capture => capture.rows);
+      state.hash = state.captures[0]?.hash || '';
+      if (!state.rows.length && state.captures.length) {
+        state.rows.push(matchRow({ id:crypto.randomUUID?.() || String(Date.now()), captureIndex:state.captures[0].sourceIndex, gameName:'', gloryWeek:0, gloryTotal:0, platesWeek:0, platesTotal:0, crop:'', confidence:0, nameConfidence:0, gloryWeekConfidence:0, gloryTotalConfidence:0, platesWeekConfidence:0, platesTotalConfidence:0 }));
+      }
+      renderRows();
+      const unknown = state.rows.filter(row => !row.playerId).length;
+      const low = state.rows.filter(row => ['nameConfidence','gloryWeekConfidence','gloryTotalConfidence','platesWeekConfidence','platesTotalConfidence'].some(field => Number(row[field]||0)<65)).length;
+      const messages = [`${state.captures.length} captura(s) y ${state.rows.length} fila(s) listas`];
+      if (skipped.length) messages.push(`se omitieron repetidas: ${skipped.join(', ')}`);
+      if (unknown) messages.push(`${unknown} cuentas por identificar`);
+      if (low) messages.push(`${low} filas con datos para revisar`);
+      toast(`${unknown || low ? '⚠️' : '✅'} ${messages.join(' · ').toUpperCase()}`);
+      progress(100, `${state.rows.length} filas listas para confirmar.`); setTimeout(hideProgress,1200);
+    } catch (error) {
+      if (state.captures.length) { state.rows=state.captures.flatMap(capture=>capture.rows);renderRows(); }
+      toast(`⚠️ ${String(error?.message || 'No se pudo leer el lote').toUpperCase()}`);hideProgress();
+    } finally { await worker?.terminate?.().catch?.(()=>{});setBusy(false); }
+  }
+
   async function save() {
-    if (state.busy || !state.file || !state.hash || !state.rows.length) { toast('⚠️ PRIMERO LEE UNA CAPTURA'); return; }
+    if (state.busy || !state.captures.length || !state.rows.length) { toast('⚠️ PRIMERO LEE UNA O VARIAS CAPTURAS'); return; }
     const date = $('lux-activity-date')?.value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) { toast('⚠️ REVISA LA FECHA DE LA CAPTURA'); return; }
     const unassigned = state.rows.filter(row => !row.playerId);
     if (unassigned.length) { toast(`⚠️ IDENTIFICA ${unassigned.length === 1 ? 'LA CUENTA PENDIENTE' : `LAS ${unassigned.length} CUENTAS PENDIENTES`}`); return; }
-    const duplicatePlayers = state.rows.filter((row, index, all) => all.findIndex(item => item.playerId === row.playerId) !== index);
-    if (duplicatePlayers.length) { toast('⚠️ UN MISMO INTEGRANTE ESTÁ ASIGNADO A DOS FILAS'); return; }
+    const duplicatePlayers = state.rows.filter((row, index, all) => all.findIndex(item => item.captureIndex === row.captureIndex && item.playerId === row.playerId) !== index);
+    if (duplicatePlayers.length) { toast('⚠️ UN MISMO INTEGRANTE ESTÁ ASIGNADO A DOS FILAS DE LA MISMA CAPTURA'); return; }
     if (state.rows.some(row => !normalizeName(row.gameName) || /^Jugador\s+\d+$/i.test(String(row.gameName || '').trim()))) { toast('⚠️ ESCRIBE EL NOMBRE REAL DEL JUEGO EN LAS FILAS NO RECONOCIDAS'); return; }
     if (state.rows.some(row => safeNumber(row.gloryTotal) < safeNumber(row.gloryWeek) || safeNumber(row.platesTotal) < safeNumber(row.platesWeek))) {
       toast('⚠️ EN UNA FILA EL TOTAL ES MENOR QUE EL VALOR SEMANAL'); return;
     }
-    const payload = state.rows.map((row, index) => ({
-      player_id:row.playerId,
-      game_name:String(row.gameName).trim().slice(0, 80),
-      alias_key:normalizeName(row.gameName),
-      glory_week:safeNumber(row.gloryWeek), glory_total:safeNumber(row.gloryTotal),
-      plates_week:safeNumber(row.platesWeek), plates_total:safeNumber(row.platesTotal),
-      row_index:index
+    const captures = state.captures.map(capture => ({
+      file:capture.file,hash:capture.hash,capturedOn:date,
+      rows:state.rows.filter(row => row.captureIndex === capture.sourceIndex).map((row,index) => ({
+        player_id:row.playerId,game_name:String(row.gameName).trim().slice(0,80),alias_key:normalizeName(row.gameName),
+        glory_week:safeNumber(row.gloryWeek),glory_total:safeNumber(row.gloryTotal),plates_week:safeNumber(row.platesWeek),plates_total:safeNumber(row.platesTotal),
+        row_index:index,name_confidence:Number(row.nameConfidence||0),glory_week_confidence:Number(row.gloryWeekConfidence||0),
+        glory_total_confidence:Number(row.gloryTotalConfidence||0),plates_week_confidence:Number(row.platesWeekConfidence||0),plates_total_confidence:Number(row.platesTotalConfidence||0)
+      }))
     }));
+    if (captures.some(capture => !capture.rows.length)) { toast('⚠️ UNA CAPTURA NO TIENE FILAS PARA GUARDAR'); return; }
     setBusy(true); progress(30, 'Guardando captura y contadores de forma segura…');
     try {
-      await window.luxPlateActivityApi.submit(state.file, state.hash, date, payload);
-      progress(100, 'Lectura guardada. El ranking ya está actualizado.');
-      toast('✅ ACTIVIDAD GUARDADA SIN DUPLICAR CONTADORES');
+      if (window.luxPlateActivityApi.submitBatch) await window.luxPlateActivityApi.submitBatch(captures);
+      else await window.luxPlateActivityApi.submit(captures[0].file,captures[0].hash,date,captures[0].rows);
+      progress(100, 'Lote guardado. El ranking ya está actualizado.');
+      toast(`✅ ${captures.length} CAPTURA(S) GUARDADA(S) SIN SUMAR SOLAPAMIENTOS`);
       reset(true);
       await prepare();
     } catch (error) {

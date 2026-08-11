@@ -43,7 +43,7 @@
             <p class="lux-muted">Usa una captura completa y nítida del listado de integrantes. No recortes los nombres ni las cuatro columnas.</p>
             <div class="lux-activity-fields">
               <label>FECHA DE LA CAPTURA<input id="lux-activity-date" type="date"/></label>
-              <label class="lux-activity-upload">CAPTURA DEL PANEL<input id="lux-activity-file" type="file" accept="image/jpeg,image/png,image/webp"/></label>
+              <label class="lux-activity-upload">CAPTURAS DEL PANEL (1 A 12)<input id="lux-activity-file" type="file" multiple accept="image/jpeg,image/png,image/webp"/></label>
             </div>
             <button id="lux-activity-analyze" class="lux-primary-action" type="button">🔎 LEER CAPTURA</button>
             <div id="lux-activity-progress" class="lux-activity-progress" hidden aria-live="polite"><i></i><span>Preparando reconocimiento…</span></div>

@@ -3,6 +3,8 @@ name: Validar y publicar en GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,20 +22,37 @@ jobs:
     steps:
       - name: Obtener código
         uses: actions/checkout@v6
-      - name: Validar scripts del hub
-        run: |
-          node --check prototipo-lider.js
-          node --check prototipo-clan-hub.js
-          node --check prototipo-accesos.js
-          node --check prototipo-placas.js
-          node --check prototipo-placas-ocr.js
-          node --check prototipo-supabase.js
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Instalar dependencias reproducibles
+        run: npm ci
       - name: Evitar claves privadas en el sitio
         run: |
           test ! -f .env
           ! rg --glob '*.js' --glob '*.html' 'sb_secret_' .
+      - name: Validar JavaScript
+        run: npm run check
+      - name: Ejecutar pruebas unitarias
+        run: npm run test:unit
+      - name: Construir sitio público mínimo
+        run: npm run build
+      - name: Instalar navegador de pruebas
+        run: npx playwright install --with-deps chromium
+      - name: Probar escritorio, iPhone y Android
+        run: npm run test:e2e
+      - name: Guardar informe si una prueba falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
     environment:
@@ -42,11 +61,14 @@ jobs:
     steps:
       - name: Obtener código
         uses: actions/checkout@v6
-      - name: Configurar Pages
-        uses: actions/configure-pages@v5
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
         with:
-          enablement: true
-      - name: Create public Supabase configuration
+          node-version: 24
+          cache: npm
+      - name: Instalar dependencias reproducibles
+        run: npm ci
+      - name: Crear configuración pública de Supabase
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
@@ -54,10 +76,16 @@ jobs:
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_PUBLISHABLE_KEY"
           node -e "const fs=require('fs'); const config={url:process.env.SUPABASE_URL,publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY}; fs.writeFileSync('supabase-client-config.js','window.LUX_SUPABASE_CONFIG = Object.freeze(' + JSON.stringify(config) + ');\\n');"
+      - name: Construir sitio público mínimo
+        run: npm run build
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Preparar sitio estático
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: .site
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4

@@ -1,35 +1,70 @@
-# Backend seguro de LUX CLAN
+# Backend Supabase de LUX CLAN SERVER
 
-Este directorio contiene la base para pasar de la demo local a una web real.
-La web puede estar publicada en GitHub Pages, pero las cuentas, imágenes y
-resultados se guardan en Supabase.
+La web usa Supabase Auth, PostgreSQL, Row Level Security, funciones RPC y
+Storage. GitHub Pages solo entrega el cliente estático.
 
-1. Crear un proyecto de Supabase y ejecutar la migración de `migrations/` en
-   el SQL Editor.
-2. Crear el archivo `supabase-client-config.js` a partir de
-   `client-config.example.js`, con la URL y la **publishable key** del proyecto.
-3. Añadir ese archivo a `.gitignore`; nunca subir claves privadas ni la
-   `service_role key`.
-4. Cuando David y las otras líderes hayan creado su cuenta, asignarles su rol
-   desde el SQL Editor usando sus UUID de `auth.users`.
+## Orden de migraciones
 
-La migración aplica Row Level Security: un integrante solo puede modificar su
-perfil y sus capturas pendientes; las victorias solo cuentan después de que una
-líder las aprueba. El ranking público no expone capturas ni edades.
+En un proyecto nuevo se deben ejecutar todos los archivos de `migrations/` en
+orden alfabético. En el proyecto existente, ejecutar únicamente los posteriores
+a la última versión aplicada. Para la versión 3 el orden específico es:
 
-## Importación del panel de actividad
+1. `20260811_membership_security_v3.sql`
+2. `20260811_competition_events_v3.sql`
+3. `20260811_operations_backup_v3.sql`
+4. `20260811_seasons_notifications_v3.sql`
 
-`migrations/20260810_clan_activity_snapshots.sql` agrega el flujo de capturas
-del listado de Free Fire. Cada archivo se identifica con SHA-256 y se guarda en
-el bucket privado `lux-clan-imports`. Solo las cuentas `owner` o `leader` pueden
-leerlo o registrar una importación.
+No cambiar el orden: competición depende de la membresía; operaciones depende
+de competición; periodos y notificaciones amplían las funciones anteriores.
 
-Los cuatro valores guardados por integrante son gloria semanal/total y placas
-semanales/totales. Una captura es un estado de los contadores, no una cantidad
-para sumar: el ranking usa el máximo observado por semana y el máximo total.
-Esto evita inflar resultados al subir de nuevo la misma captura, una versión
-recomprimida o varias capturas solapadas del listado.
+Cada ejecución debe terminar sin error y se debe recargar el esquema de
+PostgREST. Las migraciones ya incluyen `notify pgrst, 'reload schema'` cuando
+corresponde.
 
-`game_player_aliases` relaciona el nombre estilizado del juego con el UUID del
-perfil web. El OCR se ejecuta en el dispositivo de la líder y solo propone los
-datos; las filas desconocidas deben asignarse manualmente antes de guardarse.
+## Configuración de Auth
+
+Activar Google como proveedor. Autorizar:
+
+- URL del sitio: `https://david32094.github.io/lux-clan-server/`
+- Redirect URL: `https://david32094.github.io/lux-clan-server/LUX_CLAN_EDITOR_BY.DAVID.XIT.html`
+- URL local de pruebas si se va a usar OAuth local.
+
+El correo del owner se vincula una vez a `auth.users`; su rol vive en
+`public.user_roles`. No conceder owner basándose únicamente en texto enviado por
+el cliente.
+
+## Seguridad
+
+- RLS está activado en las tablas expuestas.
+- Los integrantes modifican solo sus datos permitidos y sus propios envíos.
+- Roles, membresía, revisiones, fusiones, respaldos y límites usan RPC
+  `security definer` con validaciones internas.
+- Las evidencias pendientes son privadas; solo las aprobadas de perfiles
+  públicos se muestran.
+- El panel de cuentas y correos llama una RPC exclusiva del owner.
+- Las claves `service_role` y contraseñas nunca se colocan en JavaScript, GitHub
+  Pages ni archivos de respaldo compartidos.
+
+## Storage
+
+Las migraciones crean/configuran `lux-avatars`, `lux-evidence`, `lux-banners`,
+`lux-plates` y `lux-clan-imports`. Revisar políticas después de cualquier cambio
+de bucket. El respaldo completo descarga objetos desde el navegador autorizado;
+la restauración valida el JSON y luego vuelve a subir los archivos.
+
+## Importación de actividad y OCR
+
+`game_player_aliases` relaciona nombres estilizados del juego con perfiles. Las
+capturas guardan gloria semanal/total y placas semanales/totales como estados.
+El servidor usa máximos por periodo y hash por imagen para impedir que una
+captura repetida incremente los totales.
+
+El OCR corre en el dispositivo y solo propone. Campos con confianza baja y
+nombres sin alias deben confirmarse antes de llamar la RPC de lote.
+
+## Recuperación
+
+El respaldo incluye datos, auditoría, roles, alias, relaciones y un manifiesto
+de objetos. Auth no se restaura con la publishable key: las identidades deben
+existir previamente. No resolver esto exponiendo `service_role`; usar el panel
+de Supabase o un proceso administrativo seguro si alguna cuenta debe recrearse.
