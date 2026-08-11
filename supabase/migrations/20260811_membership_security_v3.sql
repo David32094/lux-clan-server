@@ -328,7 +328,11 @@ begin
   insert into public.membership_requests(user_id, status, message)
   values (auth.uid(), 'pending', nullif(left(trim(p_message),500),''))
   on conflict (user_id) do update
-    set status = case when public.membership_requests.status = 'approved' then 'approved' else 'pending' end,
+    set status = case
+          when public.membership_requests.status = 'approved'
+            then 'approved'::public.membership_request_status
+          else 'pending'::public.membership_request_status
+        end,
         message = excluded.message,
         updated_at = now();
 

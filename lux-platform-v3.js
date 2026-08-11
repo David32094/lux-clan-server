@@ -38,10 +38,14 @@
     form.insertAdjacentHTML('beforeend', `<label class="wide">ROL PRINCIPAL EN PARTIDA<select id="lux-primary-role">${roleOptions('')}</select></label>
       <label class="wide">ROL SECUNDARIO<select id="lux-secondary-role">${roleOptions('')}</select></label>
       <label class="wide">EXPERIENCIA<select id="lux-experience-level"><option value="">SIN DEFINIR</option><option>Nuevo</option><option>Intermedio</option><option>Competitivo</option><option>Veterano</option></select></label>`);
+    ['lux-primary-role','lux-secondary-role','lux-experience-level'].forEach(id => {
+      $(id)?.addEventListener('change', () => { appState().profileDraftDirty = true; });
+    });
   }
 
   function syncProfileFields() {
     ensureProfileFields();
+    if (appState().profileDraftDirty) return;
     const profile = appState().profile || {};
     if ($('lux-primary-role')) $('lux-primary-role').value = profile.primary_game_role || '';
     if ($('lux-secondary-role')) $('lux-secondary-role').value = profile.secondary_game_role || '';

@@ -13,6 +13,7 @@ a la última versión aplicada. Para la versión 3 el orden específico es:
 2. `20260811_competition_events_v3.sql`
 3. `20260811_operations_backup_v3.sql`
 4. `20260811_seasons_notifications_v3.sql`
+5. `20260811_zz_fix_profile_role_persistence.sql`
 
 No cambiar el orden: competición depende de la membresía; operaciones depende
 de competición; periodos y notificaciones amplían las funciones anteriores.
