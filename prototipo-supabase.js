@@ -1067,6 +1067,7 @@
   }
   async function saveProfile(quiet = false) {
     if (!state.user) { openLogin('member'); return null; }
+    try {
     const display_name = $('hub-name')?.value.trim();
     const age = Number($('hub-age')?.value || 0) || null;
     const country_code = $('hub-country')?.value || null;
@@ -1087,9 +1088,9 @@
       p_country_name:country_name,
       p_avatar_path:avatar_path,
       p_message:null,
-      p_primary_game_role:$('lux-primary-role')?.value || state.profile?.primary_game_role || null,
-      p_secondary_game_role:$('lux-secondary-role')?.value || state.profile?.secondary_game_role || null,
-      p_experience_level:$('lux-experience-level')?.value || state.profile?.experience_level || null
+      p_primary_game_role:$('lux-primary-role') ? ($('lux-primary-role').value || null) : (state.profile?.primary_game_role || null),
+      p_secondary_game_role:$('lux-secondary-role') ? ($('lux-secondary-role').value || null) : (state.profile?.secondary_game_role || null),
+      p_experience_level:$('lux-experience-level') ? ($('lux-experience-level').value || null) : (state.profile?.experience_level || null)
     });
     await loadProfile();
     try {
@@ -1118,6 +1119,10 @@
     await window.luxPlatformV3?.afterProfileSaved?.();
     if (!quiet) toast('✅ PERFIL GUARDADO DE FORMA SEGURA');
     return state.profile;
+    } catch (error) {
+      if (!quiet) toast(`⚠️ NO SE PUDO GUARDAR EL PERFIL: ${errorMessage(error).toUpperCase()}`);
+      return null;
+    }
   }
   async function pickAvatar(event) {
     const file = event?.target?.files?.[0];

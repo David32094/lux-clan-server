@@ -4,6 +4,7 @@ const user = { id:'11111111-1111-4111-8111-111111111111', email:'player@example.
 const activeProfile = { id:user.id, display_name:'DAVID TEST', age:19, country_code:'br', country_name:'Brasil', avatar_path:null, onboarding_complete:true, membership_status:'active', is_public:true, public_slug:'david-test', primary_game_role:'Rusher', secondary_game_role:'Soporte', experience_level:'Competitivo' };
 
 async function mockSupabase(page, { profile=activeProfile, role='member' }={}) {
+  let currentProfile = profile ? { ...profile } : null;
   await page.route('**/supabase-client-config.js*', route => route.fulfill({ contentType:'text/javascript', body:"window.LUX_SUPABASE_CONFIG=Object.freeze({url:'https://test.supabase.co',publishableKey:'sb_publishable_test'});" }));
   await page.route('https://test.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
@@ -11,9 +12,15 @@ async function mockSupabase(page, { profile=activeProfile, role='member' }={}) {
     if (url.pathname === '/auth/v1/user') return json(user);
     if (url.pathname.includes('/auth/v1/token')) return json({ access_token:'renewed-token', refresh_token:'refresh-token', expires_in:3600, user });
     if (url.pathname.includes('/rest/v1/user_roles')) return json([{ role }]);
-    if (url.pathname.includes('/rest/v1/profiles') && request.method() === 'GET') return json(profile ? [profile] : []);
-    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking')) return json(profile ? [{ ...profile, player_id:profile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []);
-    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory')) return json(profile ? [profile] : []);
+    if (url.pathname.includes('/rest/v1/profiles') && request.method() === 'GET') return json(currentProfile ? [currentProfile] : []);
+    if (url.pathname.includes('/rest/v1/rpc/complete_my_onboarding')) {
+      const payload = JSON.parse(request.postData() || '{}');
+      currentProfile = { ...currentProfile, display_name:payload.p_display_name, age:payload.p_age, country_code:payload.p_country_code, country_name:payload.p_country_name, avatar_path:payload.p_avatar_path,
+        primary_game_role:payload.p_primary_game_role, secondary_game_role:payload.p_secondary_game_role, experience_level:payload.p_experience_level, onboarding_complete:true };
+      return json(currentProfile);
+    }
+    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []);
+    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory')) return json(currentProfile ? [currentProfile] : []);
     if (url.pathname.includes('/rest/v1/rpc/get_period_ranking')) return json([]);
     if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL:'/object/sign/mock' });
     if (url.pathname.includes('/rest/v1/rpc/')) return json([]);
@@ -69,6 +76,25 @@ test('un perfil incompleto exige nombre, país y edad', async ({ page }) => {
   await expect(page.locator('#hub-name')).toBeVisible();
   await expect(page.locator('#hub-age')).toBeVisible();
   await expect(page.locator('#hub-country')).toBeVisible();
+});
+
+test('los roles competitivos se guardan y sobreviven a una recarga', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openMember('profile'));
+  await page.locator('#lux-primary-role').selectOption('IGL');
+  await page.locator('#lux-secondary-role').selectOption('Flexible');
+  await page.locator('#lux-experience-level').selectOption('Veterano');
+  await page.getByRole('button', { name:/guardar perfil/i }).click();
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.profile?.primary_game_role)).toBe('IGL');
+
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openMember('profile'));
+  await expect(page.locator('#lux-primary-role')).toHaveValue('IGL');
+  await expect(page.locator('#lux-secondary-role')).toHaveValue('Flexible');
+  await expect(page.locator('#lux-experience-level')).toHaveValue('Veterano');
 });
 
 test('los permisos de owner muestran operaciones privadas', async ({ page }) => {
