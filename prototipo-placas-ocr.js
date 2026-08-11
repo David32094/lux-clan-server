@@ -205,6 +205,7 @@
   }
   function matchRow(row) {
     const key = normalizeName(row.gameName);
+    if (/^Jugador\s+\d+$/i.test(String(row.gameName || '').trim())) return { ...row, playerId:'', matchedBy:'', suggestionId:'' };
     const alias = state.aliases.get(key);
     if (alias) return { ...row, playerId:alias.player_id, matchedBy:'alias', suggestionId:'' };
     const exact = state.members.find(member => normalizeName(memberName(member)) === key);
@@ -378,7 +379,7 @@
     if (unassigned.length) { toast(`⚠️ IDENTIFICA ${unassigned.length === 1 ? 'LA CUENTA PENDIENTE' : `LAS ${unassigned.length} CUENTAS PENDIENTES`}`); return; }
     const duplicatePlayers = state.rows.filter((row, index, all) => all.findIndex(item => item.playerId === row.playerId) !== index);
     if (duplicatePlayers.length) { toast('⚠️ UN MISMO INTEGRANTE ESTÁ ASIGNADO A DOS FILAS'); return; }
-    if (state.rows.some(row => !normalizeName(row.gameName))) { toast('⚠️ REVISA LOS NOMBRES DEL JUEGO'); return; }
+    if (state.rows.some(row => !normalizeName(row.gameName) || /^Jugador\s+\d+$/i.test(String(row.gameName || '').trim()))) { toast('⚠️ ESCRIBE EL NOMBRE REAL DEL JUEGO EN LAS FILAS NO RECONOCIDAS'); return; }
     if (state.rows.some(row => safeNumber(row.gloryTotal) < safeNumber(row.gloryWeek) || safeNumber(row.platesTotal) < safeNumber(row.platesWeek))) {
       toast('⚠️ EN UNA FILA EL TOTAL ES MENOR QUE EL VALOR SEMANAL'); return;
     }
