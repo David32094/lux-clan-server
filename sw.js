@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v55';
+const CACHE_NAME = 'lux-clan-editor-offline-v56';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -12,6 +12,7 @@ const APP_SHELL = [
   './prototipo-placas.js',
   './prototipo-placas-ocr.js',
   './lux-simple-ui.css',
+  './lux-match-ocr.js',
   './lux-platform-v3.js',
   './lux-platform-v3.css',
   './vendor/qrcode.js',

@@ -20,6 +20,7 @@ const files = [
   'prototipo-placas-ocr.js',
   'prototipo-supabase.js',
   'lux-simple-ui.css',
+  'lux-match-ocr.js',
   'lux-platform-v3.js',
   'lux-platform-v3.css',
   'vendor/qrcode.js',

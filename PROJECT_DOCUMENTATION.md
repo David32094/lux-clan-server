@@ -63,6 +63,9 @@ editor Canvas y el esqueleto visual. Las funciones grandes están separadas:
 - `lux-platform-v3.css`: interfaz nueva y adaptación responsive.
 - `prototipo-placas-ocr.js`: procesamiento OCR, confianza por campo, comparación
   de nombres, revisión manual y lotes de varias capturas.
+- `lux-match-ocr.js`: lectura asistida de capturas finales de partida. Propone
+  resultado, marcador, modalidad, nombres, K/D/A y daño, pero nunca aprueba ni
+  suma estadísticas por sí solo.
 - `prototipo-placas.js`: presentación de placas y estadísticas de actividad.
 - `prototipo-clan-hub.js`: pantallas base del hub.
 - `prototipo-lider.js` y `prototipo-accesos.js`: compatibilidad del prototipo
@@ -214,20 +217,36 @@ recibe SHA-256, varios hashes visuales y fecha aproximada. El resultado queda
 
 ### 7.2 Partido completo
 
-Una sola captura puede registrar hasta cuatro integrantes. El formulario pide:
+Una sola captura puede registrar hasta cuatro integrantes. Para reducir el
+trabajo manual, la pantalla inicial solo exige modalidad y captura. El botón de
+lectura automática intenta preparar resultado, marcador, nombres, bajas,
+muertes, asistencias y daño. El jugador abre «Revisar o corregir datos» solo si
+lo necesita; rival, notas y estadísticas detalladas son opcionales.
 
-- modalidad y fecha;
-- rival;
-- resultado y marcador;
-- participantes;
-- por participante: rol, bajas, muertes, asistencias y daño;
-- notas opcionales y temporada.
+Los nombres detectados se comparan primero con perfiles y alias históricos. Un
+nombre dudoso no se asigna solo: aparece «¿qué integrante es?» y puede ignorarse
+si pertenece al equipo rival. La captura original es siempre la evidencia; el
+texto OCR es únicamente un borrador.
 
-El administrador aprueba o rechaza el partido una sola vez. Al aprobar, las
-estadísticas de todas las personas vinculadas se actualizan mediante consultas,
-no copiando totales editables al perfil.
+El administrador puede ampliar la imagen, corregir la ficha, aprobar, rechazar
+o seleccionar varias fichas sin riesgo para aprobarlas juntas. Las capturas con
+riesgo de similitud no se seleccionan automáticamente en un lote. Al aprobar,
+las estadísticas de todas las personas vinculadas se actualizan mediante
+consultas y los nombres de juego confirmados se guardan como alias. Un conflicto
+de alias nunca reasigna una cuenta de forma automática.
 
-### 7.3 Antifraude
+### 7.3 Integración con Free Fire
+
+No existe en el proyecto una conexión oficial de Garena que exponga plantillas
+de clan, integrantes y resultados privados. No añadir servicios comunitarios
+que pidan JWT, tokens, contraseña o una sesión de Free Fire. Aunque una API no
+oficial prometa esos datos, puede cambiar o dejar de funcionar sin aviso.
+
+La integración admitida es captura → OCR local en el navegador → corrección
+humana → RPC segura → moderación. Nunca modificar, interceptar ni automatizar el
+cliente del juego.
+
+### 7.4 Antifraude
 
 Las defensas son acumulativas:
 

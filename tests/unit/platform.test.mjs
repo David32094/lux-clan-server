@@ -46,6 +46,23 @@ test('el OCR conserva confianza por campo y admite varias capturas', async () =>
   assert.match(ocr, /gloryWeekConfidence/i);
 });
 
+test('las partidas usan captura primero, OCR corregible y aprobacion por lote', async () => {
+  const [ocr,platform,sql] = await Promise.all([
+    read('lux-match-ocr.js'),
+    read('lux-platform-v3.js'),
+    read('supabase/migrations/20260811_zzz_capture_ocr_workflow.sql')
+  ]);
+  assert.match(ocr, /parseResult/);
+  assert.match(ocr, /scoreFor/);
+  assert.match(ocr, /lineStats/);
+  assert.match(platform, /LEER CAPTURA AUTOMÁTICAMENTE/);
+  assert.match(platform, /APROBAR SELECCIONADAS/);
+  assert.match(sql, /get_active_game_aliases/i);
+  assert.match(sql, /staff_update_pending_match/i);
+  assert.match(sql, /staff_bulk_review_matches/i);
+  assert.match(sql, /stats_confirmed/i);
+});
+
 test('no se publicó ninguna clave privada de Supabase', async () => {
   const files = ['index.html','LUX_CLAN_EDITOR_BY.DAVID.XIT.html','prototipo-supabase.js','supabase-client-config.js'];
   for (const file of files) assert.ok(!(await read(file)).includes('sb_secret_'), `Clave privada en ${file}`);
