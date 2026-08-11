@@ -713,7 +713,7 @@
       const all = Array.isArray(ranking) ? ranking : [];
       const memberRows = Array.isArray(clanDirectory) && clanDirectory.length ? clanDirectory : all;
       state.publicDirectory = new Map(memberRows.map(row => [row.player_id, row]));
-      state.publicPlates = new Map((plates || []).map(row => [row.player_id, Number(row.plate_count || 0)]));
+      state.publicPlates = new Map((plates || []).map(row => [row.player_id, row]));
       const total4 = all.reduce((sum, row) => sum + Number(row.victories_4v4 || 0), 0);
       const total = all.reduce((sum, row) => sum + Number(row.victories_total || 0), 0);
       if ($('lux-public-members')) $('lux-public-members').textContent = all.length;
@@ -769,13 +769,14 @@
   }
   function ensurePublicPlates() {
     const page = document.querySelector('#lux-public-screen .hub-page');
-    if (page && !$('lux-public-plates-ranking')) page.insertAdjacentHTML('beforeend', '<section class="lux-public-card lux-public-plates"><span class="hub-kicker">CREATIVIDAD DEL CLAN</span><h3>Top de placas</h3><p>Reconocimientos registrados por las líderes.</p><div id="lux-public-plates-ranking"></div></section>');
+    if (page && !$('lux-public-plates-ranking')) page.insertAdjacentHTML('beforeend', '<section class="lux-public-card lux-public-plates"><span class="hub-kicker">ACTIVIDAD DEL CLAN</span><h3>Top de placas</h3><p>Lecturas confirmadas por las líderes desde el panel de Free Fire.</p><div id="lux-public-plates-ranking"></div></section>');
   }
   function renderPublicPlates(rows) {
     ensurePublicPlates();
     const target = $('lux-public-plates-ranking');
     if (!target) return;
-    target.innerHTML = rows.length ? rows.slice(0, 5).map((row, index) => `<p><b>#${index + 1}</b>${avatarHtml(row, 'lux-public-plate-avatar')}<span>${esc(row.display_name)}</span><em>${row.plate_count} placas</em></p>`).join('') : '<p class="lux-plates-public-empty">Aún no hay placas registradas.</p>';
+    const active = rows.filter(row => Number(row.plates_total || row.plate_count || 0) > 0 || Number(row.glory_total || 0) > 0);
+    target.innerHTML = active.length ? active.slice(0, 5).map((row, index) => `<button type="button" class="lux-public-plate-row" onclick="window.luxPlates.openGallery('${esc(row.player_id)}')"><b>#${index + 1}</b>${avatarHtml(row, 'lux-public-plate-avatar')}<span>${esc(row.display_name)}<small>${Number(row.plates_week || 0)} esta semana</small></span><em>${Number(row.plates_total || row.plate_count || 0)} placas</em></button>`).join('') : '<p class="lux-plates-public-empty">Aún no hay una captura de actividad confirmada.</p>';
   }
 
   function ensureMemberModeStats() {
@@ -1104,13 +1105,14 @@
     if (!state.publicDirectory.size) await renderPublic();
     const member = state.publicDirectory.get(id);
     if (!member) { toast('⚠️ NO SE ENCONTRÓ EL PERFIL PÚBLICO'); return; }
-    const plateCount = state.publicPlates.get(id) || 0;
+    const plateStats = state.publicPlates.get(id) || {};
+    const plateCount = Number(plateStats.plates_total || plateStats.plate_count || 0);
     const victories = await rpc('get_public_player_victories', { p_player_id:id }, false).catch(() => []);
     const signed = (await Promise.all((victories || []).map(async row => ({ ...row, image:await signedEvidence(row.evidence_path).catch(() => '') })))).filter(row => row.image);
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button>
       <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}${member.age ? ` · ${Number(member.age)} años` : ''}</p></div></header>
-      <section class="hub-modal-stats lux-player-stats lux-public-player-stats"><div><b>${Number(member.victories_1v1 || 0)}</b><small>1V1</small></div><div><b>${Number(member.victories_2v2 || 0)}</b><small>2V2</small></div><div><b>${Number(member.victories_3v3 || 0)}</b><small>3V3</small></div><div><b>${Number(member.victories_4v4 || 0)}</b><small>4V4</small></div><div><b>${Number(member.victories_other || 0)}</b><small>OTRAS</small></div><div><b>${Number(member.victories_total || 0)}</b><small>TOTAL</small></div><div><b>${plateCount}</b><small>PLACAS</small></div></section>
-      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL VERIFICADO</span><h3>Actividad aprobada</h3><p>El correo y los controles administrativos siguen siendo privados. Solo se publican las victorias revisadas y aprobadas por el equipo administrador.</p>${plateCount ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER SUS PLACAS</button>` : ''}</section>
+      <section class="hub-modal-stats lux-player-stats lux-public-player-stats"><div><b>${Number(member.victories_1v1 || 0)}</b><small>1V1</small></div><div><b>${Number(member.victories_2v2 || 0)}</b><small>2V2</small></div><div><b>${Number(member.victories_3v3 || 0)}</b><small>3V3</small></div><div><b>${Number(member.victories_4v4 || 0)}</b><small>4V4</small></div><div><b>${Number(member.victories_other || 0)}</b><small>OTRAS</small></div><div><b>${Number(member.victories_total || 0)}</b><small>VICTORIAS</small></div><div><b>${Number(plateStats.plates_week || 0)}</b><small>PLACAS SEM.</small></div><div><b>${plateCount}</b><small>PLACAS TOTAL</small></div></section>
+      <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL VERIFICADO</span><h3>Actividad aprobada</h3><p>El correo y los controles administrativos siguen siendo privados. Solo se publican victorias aprobadas y lecturas del panel confirmadas por una líder.</p>${plateCount || Number(plateStats.glory_total || 0) ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER HISTORIAL DE PLACAS</button>` : ''}</section>
       <div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS PÚBLICAS</span><h3>Victorias aprobadas</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div>
       <section class="hub-modal-gallery lux-public-victory-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · APROBADA<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}</figcaption></figure>`).join('') : '<p class="hub-empty">Todavía no hay capturas aprobadas.</p>'}</section>`;
     $('hub-modal').hidden = false;
@@ -1212,17 +1214,14 @@
   }
 
   async function renderPlatesSelector() {
-    const select = $('lux-plate-player');
-    if (!select || !state.isLeader) return;
-    const previous = select.value;
-    select.innerHTML = '<option value="">— ELEGIR INTEGRANTE —</option>' + [...state.directory.values()].sort((a,b) => a.display_name.localeCompare(b.display_name, 'es')).map(row => `<option value="${esc(row.id)}">${esc(row.display_name)}</option>`).join('');
-    select.value = previous;
+    window.luxPlateImport?.setDirectory?.([...state.directory.values()]);
   }
   async function renderPlatesRanking() {
     const target = $('lux-plates-ranking');
     if (!target) return;
     const rows = await rpc('get_public_plate_ranking', {}, false);
-    target.innerHTML = rows.length ? rows.map((row, index) => `<article class="lux-plate-row"><i>#${index + 1}</i>${avatarHtml(row, 'lux-plate-avatar')}<div><strong>${esc(row.display_name)}</strong><small>${row.plate_count} placas</small></div><button type="button" onclick="window.luxPlates.openGallery('${esc(row.player_id)}')">VER</button></article>`).join('') : '<p class="hub-empty">Aún no hay placas registradas.</p>';
+    const active = rows.filter(row => Number(row.plates_total || 0) > 0 || Number(row.glory_total || 0) > 0);
+    target.innerHTML = active.length ? active.map((row, index) => `<button type="button" class="lux-plate-row" onclick="window.luxPlates.openGallery('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-plate-avatar')}<span class="lux-plate-player"><strong>${esc(row.display_name)}</strong><small>${row.last_captured_on ? `Actualizado ${new Date(`${row.last_captured_on}T12:00:00`).toLocaleDateString('es-ES')}` : 'Sin lectura reciente'}</small></span><span class="lux-plate-stat week glory"><b>${Number(row.glory_week || 0)}</b><small>GLORIA SEM.</small></span><span class="lux-plate-stat glory"><b>${Number(row.glory_total || 0)}</b><small>GLORIA TOTAL</small></span><span class="lux-plate-stat week week-plates"><b>${Number(row.plates_week || 0)}</b><small>PLACAS SEM.</small></span><span class="lux-plate-stat total-plates"><b>${Number(row.plates_total || 0)}</b><small>PLACAS TOTAL</small></span></button>`).join('') : '<p class="hub-empty">Aún no hay una captura de actividad confirmada.</p>';
   }
   async function showPlates() {
     if (!state.isLeader) { toast('⛔ SOLO PROPIETARIA O LÍDERES GESTIONAN PLACAS'); return; }
@@ -1232,6 +1231,7 @@
     panel.hidden = false;
     setAdminSection('plates');
     await Promise.all([renderPlatesSelector(), renderPlatesRanking()]);
+    await window.luxPlateImport?.prepare?.();
   }
   async function addPlate() {
     if (!state.isLeader || !state.user) return;
@@ -1250,9 +1250,12 @@
   }
   async function openPlateGallery(playerId) {
     const member = state.directory.get(playerId) || state.publicDirectory.get(playerId) || { display_name:'Integrante' };
-    const rows = state.isStaff ? await request(`/rest/v1/plates?player_id=eq.${encodeURIComponent(playerId)}&select=*&order=created_at.desc`) : await rpc('get_public_player_plates', { p_player_id:playerId }, false);
+    const [history, legacy] = await Promise.all([
+      rpc('get_public_player_plate_history', { p_player_id:playerId }, false).catch(() => []),
+      state.isStaff ? request(`/rest/v1/plates?player_id=eq.${encodeURIComponent(playerId)}&select=*&order=created_at.desc`).catch(() => []) : Promise.resolve([])
+    ]);
     const modal = $('lux-plates-modal'); if (!modal) return;
-    modal.innerHTML = `<div class="lux-plates-modal-box"><button class="lux-plates-close" type="button" onclick="window.luxPlates.closeGallery()">×</button><span class="hub-kicker">PLACAS DE INTEGRANTE</span><h2>${esc(member.display_name)}</h2><p>${rows.length} placas registradas en el clan.</p><section>${rows.length ? rows.map(row => `<figure><img src="${esc(publicUrl('lux-plates', row.image_path))}" alt="${esc(row.title)}"/><figcaption><strong>${esc(row.title)}</strong><small>${new Date(row.created_at).toLocaleDateString('es-ES')}</small>${state.isLeader && row.id ? `<button type="button" onclick="window.luxPlates.remove('${esc(row.id)}','${esc(row.image_path)}')">ELIMINAR</button>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Todavía no tiene placas.</p>'}</section></div>`;
+    modal.innerHTML = `<div class="lux-plates-modal-box"><button class="lux-plates-close" type="button" onclick="window.luxPlates.closeGallery()">×</button><span class="hub-kicker">ACTIVIDAD DE FREE FIRE</span><h2>${esc(member.display_name)}</h2><p>Las lecturas son estados confirmados del panel: una captura repetida nunca vuelve a sumar.</p><section class="lux-plate-history">${history.length ? history.map(row => `<article><strong>SEMANA DEL ${new Date(`${row.week_start}T12:00:00`).toLocaleDateString('es-ES')}</strong><span><b>${Number(row.glory_week || 0)}</b><small>GLORIA SEM.</small></span><span><b>${Number(row.glory_total || 0)}</b><small>GLORIA TOTAL</small></span><span><b>${Number(row.plates_week || 0)}</b><small>PLACAS SEM.</small></span><span><b>${Number(row.plates_total || 0)}</b><small>PLACAS TOTAL</small></span></article>`).join('') : '<p class="hub-empty">Todavía no tiene lecturas confirmadas.</p>'}</section>${legacy.length ? `<details class="lux-legacy-plates"><summary>${legacy.length} imágenes antiguas registradas</summary><section>${legacy.map(row => `<figure><img src="${esc(publicUrl('lux-plates', row.image_path))}" alt="${esc(row.title)}"/><figcaption>${esc(row.title)}</figcaption></figure>`).join('')}</section></details>` : ''}</div>`;
     modal.hidden = false; document.body.classList.add('hub-no-scroll');
   }
   function closePlateGallery() { $('lux-plates-modal').hidden = true; document.body.classList.remove('hub-no-scroll'); }
@@ -1263,6 +1266,40 @@
       await request(`/storage/v1/object/lux-plates/${image_path.split('/').map(encodeURIComponent).join('/')}`, { method:'DELETE' });
       closePlateGallery(); toast('🗑 PLACA ELIMINADA'); await Promise.all([renderPlatesRanking(), renderPublic()]);
     } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
+  }
+
+  async function getActivityImportContext() {
+    if (!state.isLeader || !state.user) throw new Error('Solo propietaria o líderes pueden importar actividad');
+    if (!state.directory.size) await renderAdmin();
+    const aliases = await request('/rest/v1/game_player_aliases?select=alias_key,game_name,player_id&order=last_seen_at.desc');
+    return {
+      members:[...state.directory.values()].map(row => ({ id:row.id, display_name:row.display_name, avatar_path:row.avatar_path })),
+      aliases:aliases || []
+    };
+  }
+  async function activityImportExists(imageSha256) {
+    if (!state.isLeader || !/^[0-9a-f]{64}$/.test(imageSha256 || '')) return false;
+    const rows = await request(`/rest/v1/clan_activity_imports?image_sha256=eq.${encodeURIComponent(imageSha256)}&select=id&limit=1`);
+    return Boolean(rows?.length);
+  }
+  async function submitActivityCapture(file, imageSha256, capturedOn, rows) {
+    if (!state.isLeader || !state.user) throw new Error('No tienes permisos para guardar esta lectura');
+    if (!isImage(file, 10 * 1024 * 1024)) throw new Error('Usa una imagen JPG, PNG o WEBP de hasta 10 MB');
+    const imagePath = `${state.user.id}/imports/${imageSha256}.${extension(file)}`;
+    await uploadUpsert('lux-clan-imports', imagePath, file);
+    try {
+      const importId = await rpc('staff_submit_activity_snapshot', {
+        p_image_sha256:imageSha256,
+        p_image_path:imagePath,
+        p_captured_on:capturedOn,
+        p_rows:rows
+      });
+      await Promise.all([renderPlatesRanking(), renderPublic()]);
+      return importId;
+    } catch (error) {
+      await request(`/storage/v1/object/lux-clan-imports/${imagePath.split('/').map(encodeURIComponent).join('/')}`, { method:'DELETE' }).catch(() => {});
+      throw error;
+    }
   }
 
   async function openEditor(leader = false) {
@@ -1514,7 +1551,8 @@
     window.luxHub = { ...window.luxHub, saveProfile, loadMine, pickAvatar, registerVictory, renderAdmin, openPlayer, closePlayer, openEditor, backFromEditor, backup, showDirectory, showAdminSummary, renderDirectory, downloadPhoto:downloadOfficialBanner,
       askAdmin:openLeader, confirmAdmin:openLeader, closeAdminKey:() => {}, setRole:() => toast('ℹ️ LOS PERMISOS SE GESTIONAN EN EL SERVIDOR'), removePlayer:requestMemberRemoval };
     window.luxAccess = { ...window.luxAccess, openPublic:openRanking, openLogin, closeLogin, loginMember:openMember, loginLeader:openLeader, renderPublic, renderMemberTop:() => renderPublic() };
-    window.luxPlates = { ...window.luxPlates, show:showPlates, add:addPlate, openGallery:openPlateGallery, closeGallery:closePlateGallery, remove:removePlate, renderSelector:renderPlatesSelector, renderRanking:renderPlatesRanking, renderPublic:renderPublic };
+    window.luxPlates = { ...window.luxPlates, show:showPlates, openGallery:openPlateGallery, closeGallery:closePlateGallery, renderSelector:renderPlatesSelector, renderRanking:renderPlatesRanking, renderPublic:renderPublic };
+    window.luxPlateActivityApi = { getContext:getActivityImportContext, exists:activityImportExists, submit:submitActivityCapture, refresh:renderPlatesRanking };
     document.querySelector('.hub-choice.player')?.setAttribute('onclick', 'window.luxAccess.loginMember()');
     document.querySelector('.hub-choice.leader')?.setAttribute('onclick', 'window.luxAccess.loginLeader()');
     document.querySelector('.lux-public-entry')?.remove();
