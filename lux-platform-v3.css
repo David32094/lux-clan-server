@@ -1,6 +1,6 @@
-:root{--lux-v3-red:#ff3b27;--lux-v3-gold:#ffc34d;--lux-v3-green:#49d58b;--lux-v3-panel:#121117;--lux-v3-line:#ffffff18;--lux-v3-muted:#aaa4ad}
+:root{--lux-v3-red:#a8ff00;--lux-v3-gold:#d8ff45;--lux-v3-green:#8df000;--lux-v3-panel:#101408;--lux-v3-line:#c6ff0026;--lux-v3-muted:#b7c2aa;--fluxo-neon:#a8ff00;--fluxo-lime:#d8ff45;--fluxo-deep:#071006;--fluxo-panel:#0b1009;--fluxo-line:#a8ff003d}
 html{scrollbar-gutter:stable;scroll-padding-top:calc(var(--lux-sticky-nav-height,64px) + 82px)}
-body{overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+body{overflow-x:hidden;-webkit-tap-highlight-color:transparent;background-color:var(--fluxo-deep)!important}
 #hub-member .hub-nav,#hub-admin .hub-nav,#lux-public-screen .hub-nav,#hub-editor-nav .lux-editor-context-bar{position:sticky!important;z-index:140!important;top:0;background:#0c0c12f7!important;box-shadow:0 1px 0 #ffffff12;backdrop-filter:blur(10px);transform:translateZ(0)}
 .lux-member-tabs,.lux-admin-tabs,.lux-context-tabs{top:var(--lux-sticky-nav-height,64px)!important;scroll-snap-type:x proximity;scroll-behavior:smooth;transform:translateZ(0)}
 .lux-member-tabs button,.lux-admin-tabs button,.lux-context-tabs button{scroll-snap-align:center;touch-action:manipulation;transition:background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease,transform .1s ease}
@@ -8,8 +8,20 @@ body{overflow-x:hidden;-webkit-tap-highlight-color:transparent}
 #hub-member .hub-page,#hub-admin .hub-page,#lux-public-screen .hub-page{overflow-anchor:none}
 .lux-view-enter{animation:lux-view-enter .16s cubic-bezier(.2,.7,.25,1) both}
 @keyframes lux-view-enter{from{opacity:.2;transform:translate3d(0,7px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-body.lux-navigation-busy::after{content:"";position:fixed;z-index:100080;top:max(0px,var(--lux-sticky-nav-height,0px));left:0;width:34%;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#ff4d35,#ffd164,transparent);box-shadow:0 0 14px #ff3927;animation:lux-navigation-progress .72s ease-in-out infinite;pointer-events:none}
+body.lux-navigation-busy::after{content:"";position:fixed;z-index:100080;top:max(0px,var(--lux-sticky-nav-height,0px));left:0;width:34%;height:2px;border-radius:999px;background:linear-gradient(90deg,transparent,#78e800,#d6ff3d,transparent);box-shadow:0 0 14px #9dff00;animation:lux-navigation-progress .72s ease-in-out infinite;pointer-events:none}
 @keyframes lux-navigation-progress{from{transform:translate3d(-120%,0,0)}to{transform:translate3d(395%,0,0)}}
+
+/* Identidad FLUXO: verde neón inspirado en el emblema oficial. */
+header,.hub-nav,#hub-member .hub-nav,#hub-admin .hub-nav,#lux-public-screen .hub-nav,#hub-editor-nav .lux-editor-context-bar{border-color:#a8ff0066!important;background:linear-gradient(90deg,#080d07,#102008,#080d07)!important}
+.hdr-t,.hub-kicker{color:var(--fluxo-neon)!important;text-shadow:0 0 12px #a8ff0088}
+.hub-choice,.hub-card,.lux-v3-card,.lux-ops-card,.lux-event-card,.lux-announcement,.lux-public-card,.lux-member-public-row{border-color:var(--fluxo-line)!important;background:linear-gradient(145deg,#11180d,#080c07)!important}
+.hub-choice:hover,.hub-choice.active,.lux-member-tabs button.active,.lux-admin-tabs button.active,.lux-context-tabs button.active,.lux-public-row:hover,.lux-member-public-row:hover{border-color:var(--fluxo-neon)!important;background:#a8ff0014!important;box-shadow:inset 0 -3px 0 var(--fluxo-neon),0 0 20px #a8ff0018!important}
+button.primary,.primary,.hub-primary,.hub-nav .lux-nav-login,.lux-v3-actions .primary,.lux-v3-button.primary{border-color:#c4ff2a!important;background:linear-gradient(135deg,#d7ff18,#74dc00)!important;color:#071000!important;box-shadow:0 0 18px #a8ff0038}
+input:focus,select:focus,textarea:focus{border-color:var(--fluxo-neon)!important;box-shadow:0 0 0 3px #a8ff0022!important}
+.lux-v3-summary b,.hub-admin-stats b,.lux-profile-key-stats b,.lux-advanced-stats b,.lux-member-public-row>i,.lux-public-row>i{color:var(--fluxo-neon)!important;text-shadow:0 0 14px #a8ff0066}
+.hub-modal,.lux-v3-dialog>section,.lux-notification-drawer{border-color:#a8ff0060!important;background:linear-gradient(145deg,#11190d,#080c07)!important}
+.hub-modal-avatar,.lux-player-avatar-ring,.lux-v3-row-avatar{border-color:#a8ff0088!important;box-shadow:0 0 22px #a8ff0033!important}
+.lux-v3-loading i{border-top-color:var(--fluxo-neon)!important}.lux-match-ocr-progress i::after,.lux-backup-progress i{background:linear-gradient(90deg,#69d600,#d8ff45)!important}
 .lux-v3-loading{display:grid;place-items:center;align-content:center;gap:11px;min-height:44vh;color:#aaa4ad;text-align:center}.lux-v3-loading i{width:34px;height:34px;border:3px solid #ffffff16;border-top-color:#ff4f39;border-radius:50%;animation:lux-v3-spin .7s linear infinite}.lux-v3-loading span{font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px}
 @keyframes lux-v3-spin{to{transform:rotate(360deg)}}
 .lux-loading-placeholder{position:relative;overflow:hidden}.lux-loading-placeholder::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#ffffff0a 48%,transparent 66%);animation:lux-placeholder 1.1s linear infinite}
@@ -21,14 +33,14 @@ body.lux-navigation-busy::after{content:"";position:fixed;z-index:100080;top:max
 .lux-v3-card>header,.lux-v3-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
 .lux-v3-card h2,.lux-v3-card h3{margin:4px 0;color:#fff;font-family:'Bebas Neue',Impact,sans-serif;letter-spacing:1.2px;line-height:1}
 .lux-v3-card h2{font-size:2.25rem}.lux-v3-card h3{font-size:1.55rem}
-.lux-v3-card p{color:var(--lux-v3-muted);line-height:1.55}.lux-v3-card .hub-kicker{display:block;color:#ff735f}
+.lux-v3-card p{color:var(--lux-v3-muted);line-height:1.55}.lux-v3-card .hub-kicker{display:block;color:#b7ff34}
 .lux-v3-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
 .lux-v3-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.lux-v3-span{grid-column:1/-1}
-.lux-v3-field{display:grid;gap:6px;color:#ff7e69;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}
+.lux-v3-field{display:grid;gap:6px;color:#b8ff36;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:.8px}
 .lux-v3-field input,.lux-v3-field select,.lux-v3-field textarea,.lux-remove-reason input{width:100%;min-height:46px;padding:10px 12px;border:1px solid #ff3b274f;border-radius:10px;background:#08080b;color:#fff;font:500 .92rem 'Segoe UI',sans-serif;outline:none}
 .lux-v3-field textarea{min-height:92px;resize:vertical}.lux-v3-field input:focus,.lux-v3-field select:focus,.lux-v3-field textarea:focus{border-color:#ff6048;box-shadow:0 0 0 3px #ff3b2718}
 .lux-v3-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}.lux-v3-actions button,.lux-v3-button{min-height:43px;padding:10px 15px;border:1px solid #ffffff25;border-radius:10px;background:#ffffff09;color:#eee;font:1rem 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;cursor:pointer}
-.lux-v3-actions .primary,.lux-v3-button.primary{border-color:#ff5039;background:linear-gradient(135deg,#ff3821,#c6160b);color:#fff}.lux-v3-actions .gold,.lux-v3-button.gold{border-color:#d99f37;background:#b778151e;color:#ffdb81}.lux-v3-actions .danger,.lux-v3-button.danger{border-color:#e74646;background:#811215;color:#fff}.lux-v3-button:disabled,.lux-v3-actions button:disabled{opacity:.5;cursor:wait}
+.lux-v3-actions .primary,.lux-v3-button.primary{border-color:#b5ff16;background:linear-gradient(135deg,#c9ff00,#64d600);color:#081000}.lux-v3-actions .gold,.lux-v3-button.gold{border-color:#baff39;background:#a4ec161e;color:#dfff83}.lux-v3-actions .danger,.lux-v3-button.danger{border-color:#e74646;background:#811215;color:#fff}.lux-v3-button:disabled,.lux-v3-actions button:disabled{opacity:.5;cursor:wait}
 .lux-v3-empty{padding:28px;border:1px dashed #ff50394a;border-radius:12px;color:#9f98a1;text-align:center}
 .lux-v3-status{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid #ffffff24;border-radius:999px;background:#ffffff08;color:#d8d2da;font:700 .62rem 'Segoe UI',sans-serif;letter-spacing:.7px;text-transform:uppercase}
 .lux-v3-status.pending{border-color:#df9c3c66;color:#ffd27f}.lux-v3-status.active,.lux-v3-status.approved,.lux-v3-status.available{border-color:#42c98666;color:#78e7ae}.lux-v3-status.rejected,.lux-v3-status.expelled,.lux-v3-status.unavailable{border-color:#e8484866;color:#ff8e8e}.lux-v3-status.trial,.lux-v3-status.reserve,.lux-v3-status.maybe{border-color:#55a8e866;color:#8ccaff}

@@ -1,4 +1,4 @@
-# Backend Supabase de LUX CLAN SERVER
+# Backend Supabase de FLUXO
 
 La web usa Supabase Auth, PostgreSQL, Row Level Security, funciones RPC y
 Storage. GitHub Pages solo entrega el cliente estático.

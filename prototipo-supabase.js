@@ -1,4 +1,4 @@
-/* LUX CLAN: cliente de produccion para Supabase Auth + RLS.
+/* FLUXO: cliente de produccion para Supabase Auth + RLS.
  * No usa service_role ni guarda permisos en el navegador. */
 (() => {
   'use strict';
@@ -39,7 +39,7 @@
     const cfg = window.LUX_SUPABASE_CONFIG;
     if (!cfg?.url || !cfg?.publishableKey) {
       window.showToast?.('⚠️ Supabase no está configurado en este entorno. Contacta al admin del clan.');
-      console.warn('LUX CLAN: LUX_SUPABASE_CONFIG no está definido. Configura SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY como variables en el repositorio de GitHub.');
+      console.warn('FLUXO: LUX_SUPABASE_CONFIG no está definido. Configura SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY como variables en el repositorio de GitHub.');
       return;
     }
     const base = String(cfg.url).replace(/\/$/, '');
@@ -53,7 +53,7 @@
   };
 
   if (!config?.url || !config?.publishableKey) {
-    console.info('LUX CLAN: configuracion de produccion pendiente. Se mantiene la demo local.');
+    console.info('FLUXO: configuracion de produccion pendiente. Se mantiene la demo local.');
     return;
   }
 
@@ -613,7 +613,7 @@
         const accountActions = state.user
           ? `<button type="button" onclick="window.luxSupabase.openMember('home')">MI CUENTA</button>${state.isStaff ? '<button type="button" class="lux-owner-nav" onclick="window.luxAccess.loginLeader()">ADMINISTRAR</button>' : ''}<button type="button" class="lux-nav-logout" onclick="window.luxSupabase.logout()">SALIR</button>`
           : '<button type="button" class="lux-nav-login" onclick="window.luxAccess.openLogin(\'member\')">ENTRAR</button>';
-        setStableHtml(publicNav, `public:${state.user?.id || 'guest'}:${state.role}:${state.isStaff}:${state.authStatus}`, `<button type="button" class="lux-nav-brand" onclick="window.luxHub.setScreen('home')">⚡ LUX CLAN</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`);
+        setStableHtml(publicNav, `public:${state.user?.id || 'guest'}:${state.role}:${state.isStaff}:${state.authStatus}`, `<button type="button" class="lux-nav-brand" onclick="window.luxHub.setScreen('home')">⚡ FLUXO</button><strong>CLASIFICACIÓN DEL CLAN</strong><span class="lux-nav-actions">${accountActions}</span>`);
       }
     }
 
@@ -1423,7 +1423,7 @@
     const victories = await rpc('get_public_player_victories', { p_player_id:id }, false).catch(() => []);
     const signed = (await Promise.all((victories || []).map(async row => ({ ...row, image:await signedEvidence(row.evidence_path).catch(() => '') })))).filter(row => row.image);
     $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button>
-      <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}${member.age ? ` · ${Number(member.age)} años` : ''}</p></div></header>
+      <header class="lux-player-hero lux-public-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>INTEGRANTE FLUXO</span><h2>${esc(member.display_name)}</h2><p>${esc(countryLabel(member.country_code))}${member.age ? ` · ${Number(member.age)} años` : ''}</p></div></header>
       <section class="hub-modal-stats lux-player-stats lux-public-player-stats"><div><b>${Number(member.victories_1v1 || 0)}</b><small>1V1</small></div><div><b>${Number(member.victories_2v2 || 0)}</b><small>2V2</small></div><div><b>${Number(member.victories_3v3 || 0)}</b><small>3V3</small></div><div><b>${Number(member.victories_4v4 || 0)}</b><small>4V4</small></div><div><b>${Number(member.victories_other || 0)}</b><small>OTRAS</small></div><div><b>${Number(member.victories_total || 0)}</b><small>VICTORIAS</small></div><div><b>${Number(plateStats.plates_week || 0)}</b><small>PLACAS SEM.</small></div><div><b>${plateCount}</b><small>PLACAS TOTAL</small></div></section>
       <section class="lux-public-profile-note"><span class="hub-kicker">PERFIL VERIFICADO</span><h3>Actividad aprobada</h3><p>El correo y los controles administrativos siguen siendo privados. Solo se publican victorias aprobadas y lecturas del panel confirmadas por una líder.</p>${plateCount || Number(plateStats.glory_total || 0) ? `<button type="button" onclick="window.luxPlates.openGallery('${esc(id)}')">VER HISTORIAL DE PLACAS</button>` : ''}</section>
       <div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS PÚBLICAS</span><h3>Victorias aprobadas</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div>
@@ -1441,7 +1441,7 @@
     const stats = modeStats(victories);
     const pending = victories.filter(row => row.status === 'pending').length;
     const bannerAction = `<button type="button" class="lux-download-avatar" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')">DESCARGAR BANNER OFICIAL</button>`;
-    $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL LUX CLAN</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><div class="lux-player-actions">${bannerAction}${removalButton(member)}</div></div></header><section class="hub-modal-stats lux-player-stats"><div><b>${stats['1v1']}</b><small>1V1</small></div><div><b>${stats['2v2']}</b><small>2V2</small></div><div><b>${stats['3v3']}</b><small>3V3</small></div><div><b>${stats['4v4']}</b><small>4V4</small></div><div><b>${stats.Otro}</b><small>OTRAS</small></div><div><b>${stats.total}</b><small>APROBADAS</small></div><div class="lux-pending-stat"><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
+    $('hub-modal-body').innerHTML = `<button class="hub-close" type="button" onclick="window.luxHub.closePlayer()" aria-label="Cerrar">×</button><header class="lux-player-hero"><div class="lux-player-avatar-ring">${avatarHtml(member, 'hub-modal-avatar')}</div><div><span>FICHA OFICIAL FLUXO</span><h2>${esc(member.display_name)}</h2><p>${esc(member.country_name || member.country_code || 'País pendiente')} · ${member.age || '—'} años</p><div class="lux-player-actions">${bannerAction}${removalButton(member)}</div></div></header><section class="hub-modal-stats lux-player-stats"><div><b>${stats['1v1']}</b><small>1V1</small></div><div><b>${stats['2v2']}</b><small>2V2</small></div><div><b>${stats['3v3']}</b><small>3V3</small></div><div><b>${stats['4v4']}</b><small>4V4</small></div><div><b>${stats.Otro}</b><small>OTRAS</small></div><div><b>${stats.total}</b><small>APROBADAS</small></div><div class="lux-pending-stat"><b>${pending}</b><small>PENDIENTES</small></div></section><div class="lux-player-history-title"><div><span class="hub-kicker">EVIDENCIAS</span><h3>Historial de victorias</h3></div><small>Pulsa una captura para ampliarla y hacer zoom.</small></div><section class="hub-modal-gallery">${signed.length ? signed.map(row => `<figure>${evidenceButton(row.image, `Victoria ${row.mode} de ${member.display_name}`)}<figcaption><strong>${esc(row.mode)}</strong> · ${row.status === 'approved' ? 'APROBADA' : row.status === 'rejected' ? 'RECHAZADA' : 'PENDIENTE'}<br/>${new Date(row.created_at).toLocaleDateString('es-ES')}${row.status === 'pending' ? `<span><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','approved')">APROBAR</button><button type="button" onclick="window.luxSupabase.reviewVictory('${esc(row.id)}','rejected')">RECHAZAR</button></span>` : ''}</figcaption></figure>`).join('') : '<p class="hub-empty">Aún no hay capturas.</p>'}</section>`;
     compactPlayerStats(member, { total:stats.total, four:stats['4v4'], matches:victories.length, winRate:victories.length ? Math.round(stats.total * 100 / victories.length) : 0 });
     $('hub-modal').hidden = false;
     document.body.classList.add('hub-no-scroll');
@@ -1488,7 +1488,7 @@
     const member = state.directory.get(id);
     removalTarget = { id, name:member?.display_name || 'esta cuenta' };
     $('lux-remove-title').textContent = state.isOwner ? 'Eliminar cuenta' : 'Expulsar integrante';
-    $('lux-remove-copy').textContent = `¿Confirmas que quieres eliminar a ${removalTarget.name} de LUX CLAN?`;
+    $('lux-remove-copy').textContent = `¿Confirmas que quieres eliminar a ${removalTarget.name} de FLUXO?`;
     $('lux-remove-dialog').hidden = false;
     document.body.classList.add('hub-no-scroll');
   }

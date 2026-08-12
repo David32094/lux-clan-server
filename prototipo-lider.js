@@ -1,5 +1,5 @@
 /*
-  PROTOTIPO LOCAL · Roles de LUX CLAN
+  PROTOTIPO LOCAL · Roles de FLUXO
   Los perfiles se guardan solamente en este dispositivo/navegador para probar
   la experiencia antes de añadir usuarios reales y sincronización en línea.
 */
@@ -267,7 +267,7 @@
       </section>
       <section class="lux-leader-panel" id="leader-panel" hidden>
         <div class="lux-leader-heading">
-          <div><span class="lux-kicker">GESTIÓN LOCAL DEL CLAN</span><h2>MIEMBROS LUX CLAN</h2><p>Los banners generados aparecen como tarjeta. Todo queda guardado solo en este dispositivo durante la prueba.</p></div>
+          <div><span class="lux-kicker">GESTIÓN LOCAL DEL CLAN</span><h2>MIEMBROS FLUXO</h2><p>Los banners generados aparecen como tarjeta. Todo queda guardado solo en este dispositivo durante la prueba.</p></div>
           <div class="lux-leader-tools"><span id="leader-member-count">0 MIEMBROS GUARDADOS</span><button type="button" onclick="window.luxLeaderDemo.exportMembers()">📤 RESPALDAR</button><button type="button" onclick="document.getElementById('leader-import-file').click()">📥 IMPORTAR</button><input id="leader-import-file" type="file" accept="application/json,.json" onchange="window.luxLeaderDemo.importMembers(event)" hidden></div>
         </div>
         <input id="leader-member-search" class="lux-member-search" type="search" placeholder="Buscar por nombre, rol o país" oninput="window.luxLeaderDemo.renderLeaderPanel()" autocomplete="off">

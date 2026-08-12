@@ -1,4 +1,4 @@
-# LUX CLAN SERVER — documentación técnica integral
+# FLUXO — documentación técnica integral
 
 Última actualización: 11 de agosto de 2026
 Versión funcional documentada: 3.0
@@ -9,7 +9,7 @@ preservar las reglas de seguridad, navegación y compatibilidad descritas aquí.
 
 ## 1. Objetivo del producto
 
-LUX CLAN SERVER reúne en una sola web las tareas diarias de un clan de Free
+FLUXO reúne en una sola web las tareas diarias de un clan de Free
 Fire:
 
 - registro e inicio de sesión con Google;

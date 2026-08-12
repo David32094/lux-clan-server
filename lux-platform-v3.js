@@ -1,4 +1,4 @@
-/* LUX CLAN PLATFORM V3
+/* FLUXO PLATFORM V3
  * Capa modular para admisiones, partidos, temporadas, convocatorias,
  * comunicaciones, operaciones y respaldo. Todas las decisiones sensibles
  * terminan en RPC protegidas por RLS; el navegador nunca posee service_role. */
@@ -543,7 +543,7 @@
       </div></section><section class="lux-v3-card"><header><div><span class="hub-kicker">TRAZABILIDAD</span><h2>Actividad administrativa</h2><p>Cada aprobación, expulsión, cambio de estado, importación y fusión deja registro.</p></div></header><div class="lux-v3-list">${audit.length?audit.map(row=>`<article class="lux-audit-row"><strong>${esc(row.action)}</strong><small>${fmtDate(row.created_at)} · ${esc(row.target_type)} ${esc(row.target_id||'')}</small><code>${esc(JSON.stringify(row.details||{}))}</code></article>`).join(''):'<p class="lux-v3-empty">Aún no hay actividad registrada en V3.</p>'}</div></section>`;
   }
 
-  async function createInvite(){try{const rows=await core().rpc('owner_create_invite',{p_label:'Invitación LUX CLAN',p_hours:Number($('lux-invite-hours').value||72),p_max_uses:Number($('lux-invite-uses').value||1)});const row=Array.isArray(rows)?rows[0]:rows;const url=new URL(`${location.origin}${location.pathname}`);url.searchParams.set('invite',row.invite_token);$('lux-invite-output').textContent=`Vence: ${fmtDate(row.expires_at)}\n${url.href}`;await navigator.clipboard?.writeText(url.href).catch(()=>{});toast('✅ ENLACE CREADO Y COPIADO');}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}}
+  async function createInvite(){try{const rows=await core().rpc('owner_create_invite',{p_label:'Invitación FLUXO',p_hours:Number($('lux-invite-hours').value||72),p_max_uses:Number($('lux-invite-uses').value||1)});const row=Array.isArray(rows)?rows[0]:rows;const url=new URL(`${location.origin}${location.pathname}`);url.searchParams.set('invite',row.invite_token);$('lux-invite-output').textContent=`Vence: ${fmtDate(row.expires_at)}\n${url.href}`;await navigator.clipboard?.writeText(url.href).catch(()=>{});toast('✅ ENLACE CREADO Y COPIADO');}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}}
 
   async function mergeProfiles(){const source=$('lux-merge-source').value,target=$('lux-merge-target').value;if(!source||!target||source===target){toast('⚠️ ELIGE DOS CUENTAS DIFERENTES');return;}if(!confirm('¿Fusionar todos los datos del origen dentro del destino? La ficha origen quedará bloqueada.'))return;try{await core().rpc('owner_merge_member_profiles',{p_source_id:source,p_target_id:target,p_reason:'Fusión confirmada desde operaciones'});toast('✅ CUENTAS FUSIONADAS');await core().renderAdmin();await renderOperations();}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}}
   async function restoreMember(id){try{await core().rpc('owner_restore_member',{p_user_id:id});toast('✅ CUENTA RESTAURADA');await core().renderAdmin();await renderOperations();}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}}
@@ -625,7 +625,7 @@
   async function markNotificationsRead(){try{await core().rpc('mark_my_notifications_read',{p_ids:null});updateNotificationBell(0);$('lux-notification-drawer')?.remove();toast('✅ NOTIFICACIONES MARCADAS COMO LEÍDAS');}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}}
 
   function showDialog(title,content){
-    $('lux-v3-dialog')?.remove();document.body.insertAdjacentHTML('beforeend',`<div id="lux-v3-dialog" class="lux-v3-dialog" role="dialog" aria-modal="true"><section><div class="lux-v3-section-head"><div><span class="hub-kicker">LUX CLAN</span><h2>${esc(title)}</h2></div><button class="lux-v3-button" onclick="document.getElementById('lux-v3-dialog').remove()">CERRAR</button></div>${content}</section></div>`);
+    $('lux-v3-dialog')?.remove();document.body.insertAdjacentHTML('beforeend',`<div id="lux-v3-dialog" class="lux-v3-dialog" role="dialog" aria-modal="true"><section><div class="lux-v3-section-head"><div><span class="hub-kicker">FLUXO</span><h2>${esc(title)}</h2></div><button class="lux-v3-button" onclick="document.getElementById('lux-v3-dialog').remove()">CERRAR</button></div>${content}</section></div>`);
   }
 
   function injectShareAction(playerId){
@@ -638,7 +638,7 @@
   }
   function currentProfileUrl(){const member=state.currentSharePlayer;const url=new URL(`${location.origin}${location.pathname}`);url.searchParams.set('player',member?.public_slug||profileId(member));url.hash='ranking';return url.href;}
   async function copyCurrentProfile(){try{await navigator.clipboard.writeText(currentProfileUrl());toast('✅ ENLACE DEL PERFIL COPIADO');}catch(_){window.prompt('Copia este enlace:',currentProfileUrl());}}
-  async function shareCurrentProfile(){const member=state.currentSharePlayer,url=currentProfileUrl();if(navigator.share){try{await navigator.share({title:`${profileName(member)} · LUX CLAN`,text:'Perfil competitivo de LUX CLAN',url});return;}catch(_){}}await copyCurrentProfile();}
+  async function shareCurrentProfile(){const member=state.currentSharePlayer,url=currentProfileUrl();if(navigator.share){try{await navigator.share({title:`${profileName(member)} · FLUXO`,text:'Perfil competitivo de FLUXO',url});return;}catch(_){}}await copyCurrentProfile();}
 
   function showProfileQr(){
     const url=currentProfileUrl(),member=state.currentSharePlayer;
@@ -757,7 +757,7 @@
 
   async function createInviteLink(){
     try{
-      const rows=await core().rpc('owner_create_invite',{p_label:'Invitacion LUX CLAN',p_hours:Number($('lux-invite-hours').value||72),p_max_uses:Number($('lux-invite-uses').value||1)});
+      const rows=await core().rpc('owner_create_invite',{p_label:'Invitacion FLUXO',p_hours:Number($('lux-invite-hours').value||72),p_max_uses:Number($('lux-invite-uses').value||1)});
       const row=Array.isArray(rows)?rows[0]:rows,url=new URL('./',location.href);url.searchParams.set('invite',row.invite_token);
       $('lux-invite-output').textContent=`Vence: ${fmtDate(row.expires_at)}\n${url.href}`;
       await navigator.clipboard?.writeText(url.href).catch(()=>{});toast('✅ ENLACE CREADO Y COPIADO');

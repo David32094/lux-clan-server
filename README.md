@@ -1,6 +1,6 @@
-# LUX CLAN SERVER
+# FLUXO
 
-Plataforma web del clan LUX UP: cuentas con Google, perfiles, banners oficiales,
+Plataforma web del clan FLUXO: cuentas con Google, perfiles, banners oficiales,
 ranking, evidencias de partidas, placas, temporadas, convocatorias y panel de
 administración. Funciona como PWA en iPhone, Android y escritorio.
 

@@ -1,17 +1,17 @@
 {
-  "name": "LUX CLAN SERVER",
-  "short_name": "LUX CLAN",
+  "name": "FLUXO",
+  "short_name": "FLUXO",
   "description": "Perfiles, victorias y clasificación oficial de LUX CLAN.",
   "lang": "es",
   "start_url": "./index.html?app=1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#09090d",
-  "theme_color": "#09090d",
+  "theme_color": "#9dff00",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "./ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png",
+      "src": "./ICONOS/FLUXO_LOGO.png",
       "sizes": "1254x1254",
       "type": "image/png",
       "purpose": "any maskable"

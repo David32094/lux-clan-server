@@ -1,12 +1,12 @@
-/* LUX CLAN · interfaz simplificada para móvil y escritorio */
+/* FLUXO · interfaz simplificada para móvil y escritorio */
 :root {
   --lux-panel: #141218;
   --lux-panel-soft: #1a151b;
   --lux-border: #ffffff1c;
-  --lux-red: #ff3b24;
-  --lux-gold: #ffd164;
+  --lux-red: #a8ff00;
+  --lux-gold: #d8ff45;
   --lux-text: #f6f2f2;
-  --lux-muted: #aaa3aa;
+  --lux-muted: #b7c2aa;
 }
 
 .lux-simple-help {

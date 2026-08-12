@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'lux-clan-editor-offline-v57';
+const CACHE_NAME = 'fluxo-clan-offline-v58';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -16,7 +16,7 @@ const APP_SHELL = [
   './lux-platform-v3.js',
   './lux-platform-v3.css',
   './vendor/qrcode.js',
-  './ICONOS/ChatGPT%20Image%207%20ago%202026%2C%2005_48_09%20a.m..png'
+  './ICONOS/FLUXO_LOGO.png'
 ];
 
 // Estas plantillas son pesadas. Se descargan después de mostrar la interfaz,
@@ -57,7 +57,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(keys
-        .filter(key => key.startsWith('lux-clan-editor-') && key !== CACHE_NAME)
+        .filter(key => (key.startsWith('lux-clan-editor-') || key.startsWith('fluxo-clan-')) && key !== CACHE_NAME)
         .map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
