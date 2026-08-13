@@ -257,12 +257,31 @@ test('el lector rechaza fragmentos de estadisticas como nombres', async ({ page 
     first:window.luxMatchOCR.nameQuality('m n Mk MH'),
     second:window.luxMatchOCR.nameQuality('IR pS pd is'),
     niko:window.luxMatchOCR.nameQuality('EDUxNIKO'),
-    chris:window.luxMatchOCR.nameQuality('CHRISX AURA')
+    chris:window.luxMatchOCR.nameQuality('CHRISX AURA'),
+    decorated:window.luxMatchOCR.similarity('Aargen 10','Aarøøn')
   }));
   expect(result.first).toBe(0);
   expect(result.second).toBe(0);
   expect(result.niko).toBeGreaterThan(0.7);
   expect(result.chris).toBeGreaterThan(0.7);
+  expect(result.decorated).toBeGreaterThan(0.85);
+});
+
+test('el lector corrige caracteres decorados usando un integrante unico', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => typeof window.luxMatchOCR?.parseResult)).toBe('function');
+  const parsed=await page.evaluate(() => window.luxMatchOCR.parseResult([
+    {text:'EDUxNIKO 10/6/8 4211',gameName:'EDUxNIKO',confidence:96,side:'left',kind:'player'},
+    {text:'Aargen 10 6/6/17 2640',gameName:'Aargen 10',confidence:67,side:'left',kind:'player'}
+  ],'VICTORIA 7 VS 6',{currentPlayerId:'edu',members:[
+    {id:'edu',display_name:'EDUxNIKO'},
+    {id:'aaron',display_name:'Aarøøn'}
+  ],aliases:[],mode:'4v4',result:'win'}));
+  const aaron=parsed.matched.find(row=>row.playerId==='aaron');
+  expect(aaron).toBeTruthy();
+  expect(aaron.detectedName).toBe('Aarøøn');
+  expect(parsed.unmatched).toEqual([]);
 });
 
 test('el ranking conserva la misma cabecera de integrante y administrador', async ({ page }) => {

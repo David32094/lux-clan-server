@@ -57,13 +57,37 @@
     return 1 - previous[second.length] / Math.max(first.length, second.length);
   }
 
+  // Caracteres que Tesseract confunde con frecuencia en las tipografias de
+  // Free Fire. Su coste es menor que un error normal, pero nunca equivale a
+  // una coincidencia exacta: el resto del nombre tambien debe coincidir.
+  const OCR_GLYPH_GROUPS = ['O0QGDE','I1L','S5','Z2','B8','A4'];
+
+  function glyphSubstitutionCost(first, second) {
+    if (first === second) return 0;
+    return OCR_GLYPH_GROUPS.some(group => group.includes(first) && group.includes(second)) ? .28 : 1;
+  }
+
+  function glyphSimilarity(first, second) {
+    if (!first || !second) return 0;
+    const previous=Array(second.length+1).fill(0).map((_,index)=>index);
+    for(let i=1;i<=first.length;i+=1){
+      let diagonal=previous[0];previous[0]=i;
+      for(let j=1;j<=second.length;j+=1){
+        const old=previous[j];
+        previous[j]=Math.min(previous[j]+1,previous[j-1]+1,diagonal+glyphSubstitutionCost(first[i-1],second[j-1]));
+        diagonal=old;
+      }
+    }
+    return Math.max(0,1-previous[second.length]/Math.max(first.length,second.length));
+  }
+
   function similarity(first, second) {
     let best = 0;
     nameVariants(first).forEach(a => nameVariants(second).forEach(b => {
       if (a === b) { best = 1; return; }
       const shorter = a.length <= b.length ? a : b;
       const longer = a.length > b.length ? a : b;
-      let score = editSimilarity(a, b);
+      let score = Math.max(editSimilarity(a, b),glyphSimilarity(a,b));
       if (shorter.length >= 4 && longer.includes(shorter)) score = Math.max(score, .78 + .18 * (shorter.length / longer.length));
       best = Math.max(best, score);
     }));
@@ -98,7 +122,8 @@
     const sourceY = Math.round(image.naturalHeight * region.y);
     const sourceWidth = Math.max(1, Math.round(image.naturalWidth * region.width));
     const sourceHeight = Math.max(1, Math.round(image.naturalHeight * region.height));
-    const scale = Math.min(3.2, Math.max(1, targetWidth / sourceWidth));
+    // Los nombres ocupan pocos pixeles incluso en una captura Full HD.
+    const scale = Math.min(4.8, Math.max(1, targetWidth / sourceWidth));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(sourceWidth * scale));
     canvas.height = Math.max(1, Math.round(sourceHeight * scale));
@@ -110,6 +135,12 @@
       const gray = pixels.data[index] * .299 + pixels.data[index + 1] * .587 + pixels.data[index + 2] * .114;
       if (treatment === 'whiteText') {
         const value = gray >= 185 ? 0 : 255;
+        pixels.data[index] = pixels.data[index + 1] = pixels.data[index + 2] = value;
+        continue;
+      }
+      if (treatment === 'brightText') {
+        const brightest=Math.max(pixels.data[index],pixels.data[index+1],pixels.data[index+2]);
+        const value=brightest>=150&&gray>=128?0:255;
         pixels.data[index] = pixels.data[index + 1] = pixels.data[index + 2] = value;
         continue;
       }
@@ -140,9 +171,9 @@
       full,
       table,
       columns,
-      teamNames:columns.flatMap(column => rowStarts.flatMap((y,rowIndex) => ['color','gray'].map(variant => ({
+      teamNames:columns.flatMap(column => rowStarts.flatMap((y,rowIndex) => ['color','gray','brightText'].map(variant => ({
         side:column.side,kind:'name',rowIndex,variant,
-        canvas:prepareRegion(image,{ x:.135 + (column.side === 'right' ? .451 : 0),y,width:.143,height:.047 },900,variant)
+        canvas:prepareRegion(image,{ x:.132 + (column.side === 'right' ? .451 : 0),y,width:.15,height:.041 },1100,variant)
       })))),
       teamStats:columns.flatMap(column => ['color','gray'].map(variant => ({
         side:column.side,kind:'stats',variant,
@@ -272,10 +303,19 @@
 
     const usableStats = statLines.map(line => ({ ...line, stats:lineStats(line.text) })).filter(line => line.stats.confirmed);
     const mapped = groups.map((group,rowIndex) => {
-      const options = group.lines.map(line => {
+      const evaluated=group.lines.map(line => {
         const match = bestMatch(line.gameName, candidates), quality = nameQuality(line.gameName);
-        return { ...line, matchScore:match?.score || 0, rank:(match?.score || 0) * 125 + line.confidence * .32 + quality * 22 };
-      }).sort((a,b) => b.rank - a.rank);
+        return { ...line,match,quality };
+      });
+      const supportByPlayer=new Map();
+      evaluated.forEach(item=>{
+        if(!item.match?.playerId||item.match.score<.58)return;
+        supportByPlayer.set(item.match.playerId,(supportByPlayer.get(item.match.playerId)||0)+1);
+      });
+      const options = evaluated.map(item => ({
+        ...item,matchScore:item.match?.score||0,
+        rank:(item.match?.score||0)*125+item.confidence*.32+item.quality*22+(supportByPlayer.get(item.match?.playerId)||0)*11
+      })).sort((a,b) => b.rank - a.rank);
       const name = options[0];
       const nearestStat = usableStats.map(line => ({ ...line, distance:Math.abs(line.y - group.y) }))
         .filter(line => line.distance <= height * .105).sort((a,b) => a.distance - b.distance || b.confidence - a.confidence)[0];
@@ -317,7 +357,7 @@
     const ordered = [...byPlayer.values()].sort((a, b) => b.score - a.score);
     const best = ordered[0], second = ordered[1];
     if (!best) return null;
-    return { ...best, auto:best.score >= .72 && best.score - (second?.score || 0) >= .07 };
+    return { ...best, auto:best.score >= .78 && best.score - (second?.score || 0) >= .08 };
   }
 
   function selectClanSide(lines, candidates, currentPlayerId='') {
@@ -358,7 +398,7 @@
       const match = bestMatch(gameName, candidates);
       if (match?.auto) {
         const ocrLength=normalizeName(gameName).length,candidateLength=normalizeName(match.gameName).length;
-        const detectedName = match.score >= .92 && ocrLength >= candidateLength * .82 ? gameName : match.gameName;
+        const detectedName = match.score >= .96 && ocrLength >= candidateLength * .82 ? gameName : match.gameName;
         const candidate = { playerId:match.playerId, gameName, detectedName, matchedBy:match.source, confidence:Math.round(match.score * 100), ...stats };
         const current = matchedByPlayer.get(match.playerId);
         const candidateQuality = (stats.confirmed ? 200 : 0) + match.score * 100 + line.confidence / 10;
@@ -386,7 +426,7 @@
       const stats=bestLine.line.stats || lineStats(bestLine.line.text);
       matchedByPlayer.set(candidate.playerId,{
         playerId:candidate.playerId,gameName:bestLine.gameName,
-        detectedName:bestLine.score>=.92 && normalizeName(bestLine.gameName).length>=normalizeName(candidate.gameName).length*.82
+        detectedName:bestLine.score>=.96 && normalizeName(bestLine.gameName).length>=normalizeName(candidate.gameName).length*.82
           ? bestLine.gameName:candidate.gameName,
         matchedBy:candidate.source,confidence:Math.round(bestLine.score*100),...stats
       });
