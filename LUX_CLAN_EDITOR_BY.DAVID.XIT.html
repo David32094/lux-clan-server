@@ -983,7 +983,7 @@ body .lux-hub .lux-public-head { display:block; }
       { id:'edad', x:580, y:1392, size:78, font:'Bebas Neue', color:'#b6e703', bold:false, italic:false, upper:false },
       { id:'pais', x:589, y:1497, size:52, font:'Raleway', color:'#afe402', bold:true, italic:true, upper:false }
     ],
-    flag: { x:360, y:1467, w:84, h:56, code:'br' },
+    flag: { x:390, y:1496, w:84, h:56, code:'br' },
     circle: { cx:456, cy:894, r:271, photoOffY:0.4714, photoScale:1.2 },
     inputs: { nombre:'JUGADOR', edad:'19', pais:'br' }
   };
@@ -1376,7 +1376,7 @@ const INIT_INTEG = {
   nombre: { id:'nombre', x:582, y:1282, size:62 },
   edad  : { id:'edad',   x:580, y:1392, size:78 },
   pais  : { id:'pais',   x:589, y:1497, size:52 },
-  flag  : { x:360, y:1467, w:84, h:56, code:'br' },
+  flag  : { x:390, y:1496, w:84, h:56, code:'br' },
   circle: { cx:456, cy:894, r:271, photoOffY:0.4714, photoScale:1.2 }
 };
 
@@ -1395,6 +1395,12 @@ function getFontStrInteg(field, defaultSz=50){
   const fn = document.getElementById('fn-'+field+'-integ')?.value || 'Bebas Neue';
   const el = ELEMS_INTEG.find(e=>e.id===field);
   const sz = el?.size || parseInt(document.getElementById('sz-'+field+'-integ')?.value) || defaultSz;
+  // Raleway en cursiva usa un cero muy parecido a una "o" minúscula. Los
+  // nombres de Free Fire con números usan Bebas Neue para mantener todas las
+  // letras y cifras a la misma altura y diferenciar claramente 0, 6, 7 y 9.
+  if (field === 'nombre' && /\d/.test((document.getElementById('t-nombre-integ')?.value || ''))) {
+    return `bold ${Math.round(sz * 1.08)}px "Bebas Neue", Impact, sans-serif`;
+  }
   if (fn==='Bebas Neue') return `bold ${sz}px "Bebas Neue", Impact, sans-serif`;
   const it = isOn('it-'+field+'-integ') ? 'italic ' : '';
   const w  = isOn('bo-'+field+'-integ') ? '900 ' : '700 ';

@@ -12,6 +12,8 @@ test('la entrada es ligera y las plantillas no siguen incrustadas', async () => 
   assert.match(html, /\.\/ENFRETAMIENTOS\/fluxo-enfrentamientos\.jpg/);
   assert.match(html, /\.\/ENFRETAMIENTOS\/fluxo-result-overlay\.png/);
   assert.match(html, /cl-nombre-integ[^>]+value="#ade102"/);
+  assert.match(html, /field === 'nombre' && \/\\d\/\.test/);
+  assert.match(html, /flag\s*:\s*\{\s*x:390,\s*y:1496,\s*w:84,\s*h:56/);
   assert.doesNotMatch(html, /const\s+INTEG_TEMPLATE\s*=\s*["'][^"']*base\.png/);
   assert.ok(!/const\s+INTEG_TEMPLATE\s*=\s*["']data:image/.test(html));
 });

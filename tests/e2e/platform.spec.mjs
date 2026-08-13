@@ -394,6 +394,13 @@ test('placas y banners cargan sin depender de archivos incrustados', async ({ pa
   await expect(page.locator('#c-integ')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.querySelector('#c-integ')?.width || 0)).toBeGreaterThan(500);
   await expect.poll(() => page.locator('#btn-dl-integ').isEnabled()).toBe(true);
+  await page.locator('#t-nombre-integ').fill('FX 07');
+  const numericNameLayout = await page.evaluate(() => ({
+    font:getFontStrInteg('nombre', 62),
+    flag:{ ...flagElInteg }
+  }));
+  expect(numericNameLayout.font).toContain('Bebas Neue');
+  expect(numericNameLayout.flag).toMatchObject({ x:390, y:1496, w:84, h:56 });
 
   const memberColors = await page.locator('#c-integ').evaluate(canvas => {
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
