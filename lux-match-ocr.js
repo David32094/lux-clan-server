@@ -284,6 +284,22 @@
     return {};
   }
 
+  function voteStatReadings(lines,part) {
+    const reads=lines.map(line=>({ ...partialStats(line.text,part),confidence:Number(line.confidence||0),variant:line.variant||'' }));
+    const key=part==='kda'?'hasKda':'hasDamage',valid=reads.filter(read=>read[key]);
+    if(!valid.length)return {};
+    const signature=read=>part==='kda'?`${read.kills}/${read.deaths}/${read.assists}`:String(read.damage);
+    const grouped=new Map();
+    valid.forEach(read=>{
+      const id=signature(read),current=grouped.get(id)||{read,count:0,variants:new Set(),confidence:0};
+      current.count+=1;current.variants.add(read.variant);current.confidence=Math.max(current.confidence,read.confidence);grouped.set(id,current);
+    });
+    const winner=[...grouped.values()].sort((a,b)=>
+      b.variants.size-a.variants.size||b.count-a.count||b.confidence-a.confidence
+    )[0];
+    return { ...winner.read,votes:winner.count,variantVotes:winner.variants.size,confidence:winner.confidence };
+  }
+
   function spatialLines(words, canvasWidth, canvasHeight, region, side, targetHeight) {
     const filtered = words.filter(word => {
       const x=(word.bbox.x0+word.bbox.x1)/2/canvasWidth,y=(word.bbox.y0+word.bbox.y1)/2/canvasHeight;
@@ -329,12 +345,11 @@
       });
 
     const partialByRow=new Map();
-    statLines.filter(line=>Number.isInteger(line.rowIndex)&&line.part).forEach(line=>{
-      const partial=partialStats(line.text,line.part),current=partialByRow.get(line.rowIndex)||{};
-      const score=Number(line.confidence||0);
-      if(partial.hasKda&&score>Number(current.kdaConfidence||-1))Object.assign(current,partial,{kdaConfidence:score});
-      if(partial.hasDamage&&score>Number(current.damageConfidence||-1))Object.assign(current,partial,{damageConfidence:score});
-      partialByRow.set(line.rowIndex,current);
+    [0,1,2,3].forEach(rowIndex=>{
+      const rowLines=statLines.filter(line=>line.rowIndex===rowIndex&&line.part);
+      const kda=voteStatReadings(rowLines.filter(line=>line.part==='kda'),'kda');
+      const damage=voteStatReadings(rowLines.filter(line=>line.part==='damage'),'damage');
+      partialByRow.set(rowIndex,{...kda,...damage});
     });
     const usableStats = statLines.map(line => ({ ...line, stats:lineStats(line.text) })).filter(line => line.stats.confirmed);
     const mapped = groups.map((group,rowIndex) => {
