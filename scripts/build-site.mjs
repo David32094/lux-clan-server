@@ -25,9 +25,9 @@ const files = [
   'lux-platform-v3.js',
   'lux-platform-v3.css',
   'vendor/qrcode.js',
-  'INTEGRANTES/base.png',
-  'ENFRETAMIENTOS/base.png',
-  'ENFRETAMIENTOS/OVERLAY POR ENCIMA DE LA FOTO DEL RESULTADO.png',
+  'INTEGRANTES/fluxo-integrantes.png',
+  'ENFRETAMIENTOS/fluxo-enfrentamientos.jpg',
+  'ENFRETAMIENTOS/fluxo-result-overlay.png',
   'ICONOS/ChatGPT Image 7 ago 2026, 05_48_09 a.m..png',
   'ICONOS/FLUXO_LOGO.png'
 ];

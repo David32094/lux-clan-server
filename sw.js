@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'fluxo-clan-offline-v65';
+const CACHE_NAME = 'fluxo-clan-offline-v66';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -24,9 +24,9 @@ const APP_SHELL = [
 // de modo que la primera pantalla abra rápido y el editor siga disponible sin
 // conexión una vez terminada la preparación en segundo plano.
 const EDITOR_ASSETS = [
-  './INTEGRANTES/base.png',
-  './ENFRETAMIENTOS/base.png',
-  './ENFRETAMIENTOS/OVERLAY%20POR%20ENCIMA%20DE%20LA%20FOTO%20DEL%20RESULTADO.png'
+  './INTEGRANTES/fluxo-integrantes.png',
+  './ENFRETAMIENTOS/fluxo-enfrentamientos.jpg',
+  './ENFRETAMIENTOS/fluxo-result-overlay.png'
 ];
 
 async function withMobileTouchFix(response) {

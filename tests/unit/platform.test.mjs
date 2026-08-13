@@ -8,8 +8,11 @@ test('la entrada es ligera y las plantillas no siguen incrustadas', async () => 
   const html = await read('LUX_CLAN_EDITOR_BY.DAVID.XIT.html');
   const info = await stat(new URL('../../LUX_CLAN_EDITOR_BY.DAVID.XIT.html', import.meta.url));
   assert.ok(info.size < 250_000, `HTML demasiado pesado: ${info.size}`);
-  assert.match(html, /\.\/INTEGRANTES\/base\.png/);
-  assert.match(html, /\.\/ENFRETAMIENTOS\/base\.png/);
+  assert.match(html, /\.\/INTEGRANTES\/fluxo-integrantes\.png/);
+  assert.match(html, /\.\/ENFRETAMIENTOS\/fluxo-enfrentamientos\.jpg/);
+  assert.match(html, /\.\/ENFRETAMIENTOS\/fluxo-result-overlay\.png/);
+  assert.match(html, /cl-nombre-integ[^>]+value="#ade102"/);
+  assert.doesNotMatch(html, /const\s+INTEG_TEMPLATE\s*=\s*["'][^"']*base\.png/);
   assert.ok(!/const\s+INTEG_TEMPLATE\s*=\s*["']data:image/.test(html));
 });
 

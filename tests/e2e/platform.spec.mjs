@@ -388,10 +388,46 @@ test('placas y banners cargan sin depender de archivos incrustados', async ({ pa
   await mockSupabase(page, { role:'owner' });
   await page.goto(oauthUrl());
   await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.luxAuth)).toBe('authenticated');
   expect(await page.evaluate(() => typeof window.luxPlateImport?.analyze === 'function')).toBeTruthy();
   await page.evaluate(() => window.luxHub.openEditor(false));
   await expect(page.locator('#c-integ')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.querySelector('#c-integ')?.width || 0)).toBeGreaterThan(500);
+  await expect.poll(() => page.locator('#btn-dl-integ').isEnabled()).toBe(true);
+
+  const memberColors = await page.locator('#c-integ').evaluate(canvas => {
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let green = 0;
+    let red = 0;
+    for (let i = 0; i < data.length; i += 64) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (g > 105 && g > r * 1.35 && g > b * 1.2) green++;
+      if (r > 105 && r > g * 1.35 && r > b * 1.2) red++;
+    }
+    return { green, red };
+  });
+  expect(memberColors.green).toBeGreaterThan(memberColors.red * 5);
+
+  await page.evaluate(() => window.luxHub.openEditor(true));
+  await page.evaluate(() => switchTab('enfrentamientos'));
+  await expect(page.locator('#c-enfrent')).toBeVisible();
+  await expect.poll(() => page.locator('#btn-dl-enfrent').isEnabled()).toBe(true);
+  const battleColors = await page.locator('#c-enfrent').evaluate(canvas => {
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let green = 0;
+    let red = 0;
+    for (let i = 0; i < data.length; i += 64) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (g > 105 && g > r * 1.35 && g > b * 1.2) green++;
+      if (r > 105 && r > g * 1.35 && r > b * 1.2) red++;
+    }
+    return { green, red };
+  });
+  expect(battleColors.green).toBeGreaterThan(battleColors.red * 5);
 });
 
 test('la navegación móvil no produce desbordamiento horizontal', async ({ page }) => {
