@@ -1,5 +1,5 @@
 const EDITOR_PAGE = './LUX_CLAN_EDITOR_BY.DAVID.XIT.html';
-const CACHE_NAME = 'fluxo-clan-offline-v58';
+const CACHE_NAME = 'fluxo-clan-offline-v59';
 const MOBILE_TOUCH_FIX = './mobile-touch-fix.js';
 const APP_SHELL = [
   './',
@@ -12,6 +12,7 @@ const APP_SHELL = [
   './prototipo-placas.js',
   './prototipo-placas-ocr.js',
   './lux-simple-ui.css',
+  './fluxo-theme.css',
   './lux-match-ocr.js',
   './lux-platform-v3.js',
   './lux-platform-v3.css',

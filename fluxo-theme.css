@@ -1,0 +1,125 @@
+﻿/* Identidad visual oficial FLUXO. Cargada al final para reemplazar la antigua capa LUX UP. */
+:root{
+ color-scheme:dark;
+ --fluxo-neon:#b8ff00;--fluxo-lime:#8cff00;--fluxo-bright:#dcff70;
+ --fluxo-ink:#030604;--fluxo-bg:#060907;--fluxo-panel:#0b100c;--fluxo-panel-2:#111711;
+ --fluxo-line:#b8ff003d;--fluxo-line-strong:#b8ff0080;--fluxo-text:#f6f9f2;--fluxo-muted:#a9b4a4;--fluxo-danger:#ff4d55;
+ --lux-red:var(--fluxo-neon);--lux-gold:var(--fluxo-bright);--lux-panel:var(--fluxo-panel);--lux-panel-soft:var(--fluxo-panel-2);
+ --lux-border:var(--fluxo-line);--lux-text:var(--fluxo-text);--lux-muted:var(--fluxo-muted);
+ --lux-v3-red:var(--fluxo-neon);--lux-v3-gold:var(--fluxo-bright);--lux-v3-green:var(--fluxo-lime);
+ --lux-v3-panel:var(--fluxo-panel);--lux-v3-line:var(--fluxo-line);--lux-v3-muted:var(--fluxo-muted)
+}
+html,body{background:radial-gradient(circle at 78% 7%,#75d80012,transparent 31%),radial-gradient(circle at 10% 88%,#b8ff0008,transparent 24%),var(--fluxo-bg)!important;color:var(--fluxo-text)}
+::selection{background:#b8ff0045;color:#fff}*{scrollbar-color:#78bb23 #070a07}
+
+/* Editor */
+body>header{min-height:64px!important;height:64px!important;padding:0 clamp(14px,2.5vw,30px)!important;border-bottom:1px solid var(--fluxo-line)!important;background:#070b08f5!important;box-shadow:0 10px 35px #0008!important}
+.hdr-brand::before{content:'';width:38px;height:38px;flex:0 0 38px;border-radius:10px;background:url('./ICONOS/FLUXO_LOGO.png') center/cover no-repeat;box-shadow:0 0 18px #9dff0045}
+.hdr-t{color:var(--fluxo-text)!important;background:linear-gradient(100deg,#fff 10%,var(--fluxo-neon) 88%)!important;-webkit-background-clip:text!important;background-clip:text!important;text-shadow:none!important;filter:drop-shadow(0 0 9px #a8ff0066)!important}
+.hdr-author{color:var(--fluxo-bright)!important;border-color:var(--fluxo-line-strong)!important;background:#a8ff0012!important;text-shadow:0 0 8px #a8ff0070!important}
+.tab-btn,.save-btn,.preset-load,.btn-rst{border-color:var(--fluxo-line)!important}
+.tab-btn:hover,.tab-btn:active,.tab-btn.active,.save-btn:hover,.preset-load:hover,.btn-rst:hover{border-color:var(--fluxo-neon)!important;background:#a8ff0018!important;color:var(--fluxo-bright)!important;box-shadow:0 0 18px #a8ff002b!important}
+.card,.preset-item,.canvas-hint{border-color:var(--fluxo-line)!important;background:linear-gradient(145deg,#101610f5,#080b09f5)!important}
+.card-title,.canvas-lbl,.photo-hint span,.hint-txt span,.cb-lbl,.text-style-chevron{color:var(--fluxo-neon)!important;text-shadow:0 0 10px #a8ff0066!important}
+.card-title .dot{color:var(--fluxo-neon)!important;background:var(--fluxo-neon)!important;box-shadow:0 0 9px var(--fluxo-neon)!important}
+.inp,.t-font,.t-size,.t-color,.tbtn,.save-inp,.coord-box,.text-settings-card .text-style-toggle{border-color:var(--fluxo-line)!important;background:#050806!important}
+.inp:focus,.t-font:focus,.t-size:focus,.save-inp:focus,.text-settings-card .text-style-toggle:hover,.text-settings-card .text-style-toggle:focus-visible,.tbtn:hover,.tbtn.on{border-color:var(--fluxo-neon)!important;background:#a8ff0013!important;color:var(--fluxo-bright)!important;box-shadow:0 0 0 3px #a8ff0012!important}
+canvas{border-color:var(--fluxo-line-strong)!important;box-shadow:0 0 34px #80e80029!important}
+.btn-dl,.lux-login-primary,.lux-primary-action,.lux-v3-actions .primary,.lux-v3-button.primary{border:1px solid #c9ff006b!important;background:linear-gradient(135deg,#caff20,#70d600)!important;color:#071006!important;box-shadow:0 0 24px #9dff0030!important;text-shadow:none!important}
+.btn-dl:hover,.lux-login-primary:hover,.lux-primary-action:hover,.lux-v3-actions .primary:hover,.lux-v3-button.primary:hover{filter:brightness(1.07);box-shadow:0 0 32px #a8ff0050!important}
+#toast:not(.error):not(.danger){border-color:var(--fluxo-neon)!important;box-shadow:0 0 28px #9dff0050!important}
+
+/* Portada */
+.hub-home{background:radial-gradient(circle at 50% 26%,#9cff0017,transparent 27%),radial-gradient(circle at 95% 80%,#4d9a0014,transparent 32%),#040705!important}
+.hub-home-glow{background:radial-gradient(circle,#a8ff0023,transparent 68%)!important;filter:blur(22px)}
+.hub-home-content{width:min(100%,1020px)!important;padding:clamp(36px,7vh,72px) 18px 54px!important;text-align:center}
+.fluxo-home-logo{width:clamp(92px,9vw,126px)!important;height:clamp(92px,9vw,126px)!important;margin:0 auto 18px!important;border-radius:26px;box-shadow:0 0 34px #a8ff0050}
+.hub-home-content>.hub-pill{display:none!important}.hub-home-content>.hub-kicker{display:block;margin:0 auto 9px;color:var(--fluxo-neon)!important}
+.hub-home h1{margin:0!important;color:var(--fluxo-text)!important;font-size:clamp(4.4rem,9vw,7.6rem)!important;line-height:.78!important;letter-spacing:clamp(2px,.5vw,7px)!important;text-shadow:0 0 34px #a8ff0022!important}
+.hub-home h1 em,.hub-intro h2 em,.hub-admin-head h2 em,.hub-directory-head h2 em,.lux-public-head h2 em{color:var(--fluxo-neon)!important;text-shadow:0 0 22px #a8ff0045!important}
+.hub-home-content>p{max-width:650px!important;margin:24px auto 28px!important;color:var(--fluxo-muted)!important}.hub-choices{width:min(100%,880px);margin-inline:auto}
+.hub-choice,.hub-choice.ranking,.lux-public-entry{border-color:var(--fluxo-line)!important;background:linear-gradient(145deg,#111811,#080c08)!important;box-shadow:0 12px 34px #0007!important}
+.hub-choice:hover,.hub-choice:focus-visible,.hub-choice.ranking:hover,.lux-public-entry:hover{border-color:var(--fluxo-neon)!important;background:linear-gradient(145deg,#172414,#0b110a)!important;box-shadow:0 0 0 1px #a8ff0030,0 16px 38px #0009,0 0 25px #a8ff001d!important;transform:translateY(-2px)}
+.hub-choice b,.hub-choice.ranking b,.lux-public-entry b{color:var(--fluxo-bright)!important}
+
+/* Cabeceras y navegacion */
+#hub-member .hub-nav,#hub-admin .hub-nav,#lux-public-screen .hub-nav,#hub-editor-nav .lux-editor-context-bar{min-height:62px!important;padding:9px max(14px,calc((100% - 1120px)/2))!important;border-bottom:1px solid var(--fluxo-line)!important;background:#070b08f7!important;box-shadow:0 10px 28px #0007!important}
+.hub-nav>strong,.lux-editor-context-bar>strong{color:var(--fluxo-text)!important}.hub-nav>strong small,.lux-editor-context-bar>strong small,#lux-leader-session{color:var(--fluxo-neon)!important}
+.hub-nav button,.lux-editor-context-bar button,.lux-nav-actions button{border-color:#ffffff24!important;background:#ffffff06!important;color:#e9eee5!important}
+.hub-nav button:hover,.hub-nav button:focus-visible,.lux-editor-context-bar button:hover,.lux-editor-context-bar button:focus-visible,.lux-nav-actions button:hover,.lux-owner-nav{border-color:var(--fluxo-line-strong)!important;background:#a8ff0012!important;color:var(--fluxo-bright)!important}
+.lux-nav-logout{border-color:#ffffff28!important;background:#ffffff08!important;color:#dfe5db!important}
+.lux-member-tabs,.lux-admin-tabs,.lux-context-tabs{border-color:var(--fluxo-line)!important;background:#080d09f5!important;box-shadow:0 12px 32px #0008!important}
+.lux-member-tabs button,.lux-admin-tabs button,.lux-context-tabs button{color:#9faa9b!important}
+.lux-member-tabs button:hover,.lux-member-tabs button.active,.lux-admin-tabs button:hover,.lux-admin-tabs button.active,.lux-context-tabs button:hover,.lux-context-tabs button.active{border-color:var(--fluxo-line-strong)!important;background:linear-gradient(145deg,#182316,#0b110b)!important;color:#fff!important;box-shadow:inset 0 -3px 0 var(--fluxo-neon),0 0 18px #a8ff0018!important}
+.lux-admin-tabs button>b,.lux-notification-bell b{background:var(--fluxo-neon)!important;color:#071006!important}
+
+/* Tarjetas y contenido */
+.hub-card,.hub-member-row,.hub-rank,.hub-modal,.hub-member-top,.lux-public-card,.lux-public-stats article,.lux-public-podium article,.lux-public-row,.lux-member-public-row,.lux-v3-card,.lux-v3-row,.lux-event-card,.lux-announcement,.lux-ops-card,.lux-admin-overview-slot,.lux-admin-stats-slot .hub-admin-stats article,.lux-profile-key-stats article,.lux-profile-stat-details,.lux-advanced-stats article,.lux-access-grid>article,.lux-login-box,.hub-key-box,.lux-notification-drawer,.lux-v3-dialog>section{border-color:var(--fluxo-line)!important;background:linear-gradient(145deg,#111711,#080c08)!important;box-shadow:0 14px 40px #0006!important}
+.hub-card:hover,.hub-member-row:hover,.hub-rank:hover,.lux-public-row:hover,.lux-member-public-row:hover,.lux-v3-row:hover{border-color:var(--fluxo-line-strong)!important;background:linear-gradient(145deg,#152014,#0a100a)!important}
+.hub-kicker,.lux-kicker,.lux-field-label,.lux-v3-field,.lux-ranking-toolbar label,.lux-owner-role-field,.lux-owner-account .lux-owner-role-field>span,.lux-login-box label,.lux-public-podium i,.lux-public-row>i,.lux-member-public-row>i,.lux-period-row em,.lux-profile-stat-details>summary::after{color:var(--fluxo-neon)!important;text-shadow:none!important}
+.hub-admin-stats b,.lux-admin-stats-slot .hub-admin-stats b,.lux-v3-summary b,.lux-profile-key-stats b,.lux-advanced-stats b,.lux-public-stats b,.lux-member-top-grid>article b,.hub-modal-stats b,.lux-player-stats b{color:var(--fluxo-neon)!important;text-shadow:0 0 15px #a8ff0048!important}
+.lux-admin-stats-slot .hub-admin-stats article::before{background:linear-gradient(var(--fluxo-bright),#5cae00)!important}
+.hub-mvp,#hub-admin .hub-admin-head.lux-admin-overview .hub-mvp,.lux-member-top,.lux-access-control,.lux-onboarding-callout,.lux-v3-gate>section,.lux-announcement.pinned,.lux-event-assignment{border-color:var(--fluxo-line-strong)!important;background:radial-gradient(circle at 85% 10%,#a8ff0015,transparent 34%),linear-gradient(145deg,#152012,#090d09)!important;color:#dce7d5!important}
+.hub-mvp-avatar,.hub-modal-avatar,.hub-rank-avatar,.hub-directory-avatar,.lux-player-avatar-ring,.lux-v3-row-avatar,.lux-podium-avatar,.lux-participant-name img,.lux-participant-name>span:first-child{border-color:var(--fluxo-line-strong)!important;background-color:#121b10!important;box-shadow:0 0 20px #a8ff0028!important}
+.lux-public-podium article,.lux-member-top-head button,.lux-share-actions button,.lux-role-save,.lux-v3-actions .gold,.lux-v3-button.gold{border-color:var(--fluxo-line-strong)!important;background:#a8ff0012!important;color:var(--fluxo-bright)!important}
+.lux-simple-actions button,.lux-admin-actions button{border-color:var(--fluxo-line)!important;background:linear-gradient(145deg,#111711,#080c08)!important}
+.lux-simple-actions button:hover,.lux-admin-actions button:hover{border-color:var(--fluxo-neon)!important;background:linear-gradient(145deg,#182416,#0b110a)!important}
+.lux-simple-actions i,.lux-admin-actions i,.lux-simple-steps span b,.lux-v3-gate-icon,.lux-v3-gate li b{background:#a8ff0015!important;color:var(--fluxo-neon)!important}
+.lux-simple-actions b,.lux-simple-steps>strong,.lux-player-roles b,.lux-access-grid code,.lux-qr-card code{color:var(--fluxo-bright)!important}
+.lux-simple-steps{border-color:var(--fluxo-line)!important;background:#a8ff0009!important;color:#d5ded0!important}
+
+/* Formularios */
+.lux-v3-field input,.lux-v3-field select,.lux-v3-field textarea,.lux-remove-reason input,.lux-ranking-toolbar select,.lux-login-box input,.lux-login-box select,.lux-owner-role-field select,.lux-role-control select,.hub-directory-search input,.lux-member-search,.lux-ocr-person select,.lux-match-participant input,.lux-match-participant select,.lux-match-correction-player input,.lux-match-correction-player select{border-color:var(--fluxo-line)!important;background:#050806!important}
+.lux-v3-field input:focus,.lux-v3-field select:focus,.lux-v3-field textarea:focus,.lux-ranking-toolbar select:focus,.lux-login-box input:focus,.lux-login-box select:focus,.hub-directory-search input:focus,.lux-member-search:focus{border-color:var(--fluxo-neon)!important;box-shadow:0 0 0 3px #a8ff0015!important;outline:none}
+input[type=checkbox],input[type=radio],.lux-participant-toggle,.lux-review-toolbar input,.lux-review-check input{accent-color:var(--fluxo-lime)!important}
+.lux-match-ocr-progress i::after,.lux-backup-progress i{background:linear-gradient(90deg,#60c700,var(--fluxo-bright))!important}.lux-notification-item.unread,.lux-audit-row{border-left-color:var(--fluxo-neon)!important;background:#a8ff0008!important}
+
+/* Rojo reservado a peligro; amarillo reservado a revision. */
+.lux-admin-focus.has-pending,.lux-risk-flag,.lux-confidence-low,.lux-v3-status.pending,.lux-access-state.approval{border-color:#e7c34d66!important;background-color:#e7c34d0d!important;color:#ffe38b!important}
+.danger,.reject,.preset-del,.hub-remove,.hub-remove-confirm .danger,.lux-v3-status.rejected,.lux-v3-status.expelled,.lux-v3-status.unavailable,.lux-remove-reason{--lux-red:var(--fluxo-danger)}
+
+/* Ritmo y alineacion */
+#hub-member .hub-page,#hub-admin .hub-page,#lux-public-screen .hub-page{width:min(100%,1160px)!important;max-width:1160px!important;padding:28px 18px 84px!important}
+.hub-intro,.hub-admin-head,.hub-directory-head,.lux-public-head,.lux-section-heading{max-width:none!important}
+.lux-admin-overview-slot .hub-admin-head,#hub-admin .hub-admin-head.lux-admin-overview{padding:clamp(24px,4vw,38px)!important}
+.lux-admin-overview-slot{overflow:visible!important}.lux-admin-overview-slot .hub-kicker,#hub-admin .hub-admin-head.lux-admin-overview .hub-kicker{display:block;padding-left:2px}.lux-context-ranking-panel>.lux-v3-card{max-width:1160px!important}
+
+@media(max-width:900px){
+ body>header{height:auto!important;min-height:58px!important;padding:8px 10px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
+ .hdr-brand{justify-content:flex-start!important;flex-wrap:nowrap!important;min-width:0}.hdr-brand::before{width:34px;height:34px;flex-basis:34px}.hdr-author{display:none}.nav-tabs{width:auto!important;display:flex!important;gap:5px!important}.tab-btn{width:auto!important;min-height:38px!important;padding:6px 9px!important}
+ #hub-member .hub-nav,#hub-admin .hub-nav,#lux-public-screen .hub-nav,#hub-editor-nav .lux-editor-context-bar{min-height:58px!important;padding:8px 10px!important}.lux-member-tabs,.lux-admin-tabs,.lux-context-tabs{margin-top:-14px!important}
+ .hub-home-content{padding-top:28px!important}.fluxo-home-logo{width:88px!important;height:88px!important;margin-bottom:14px!important}.hub-home h1{font-size:clamp(4.2rem,19vw,6rem)!important}
+ #hub-member .hub-page,#hub-admin .hub-page,#lux-public-screen .hub-page{padding:24px 12px 82px!important}
+}
+@media(max-width:520px){
+ .hub-home-content>p{margin:18px auto 22px!important;font-size:.87rem;line-height:1.5}.hub-choices{gap:9px!important}.hub-choice,.lux-public-entry{min-height:78px!important;padding:13px!important}
+ .hub-nav>strong,.lux-editor-context-bar>strong{font-size:.88rem!important;letter-spacing:.8px!important}.hub-nav button,.lux-editor-context-bar button,.lux-nav-actions button{padding:7px!important;font-size:.74rem!important}
+ .lux-admin-overview-slot .hub-admin-head,#hub-admin .hub-admin-head.lux-admin-overview{padding:22px 18px!important}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* Residuos concretos de componentes antiguos del hub. */
+.hub-admin{background:radial-gradient(circle at 82% 5%,#6ebd0014,transparent 29%),var(--fluxo-bg)!important}
+.hub-form label,.hub-directory-search{color:var(--fluxo-neon)!important}.hub-form input[readonly]{color:#dce8d5!important;background:#a8ff0009!important}
+.hub-actions button,.hub-win-controls button{border-color:var(--fluxo-line-strong)!important;background:#a8ff0012!important;color:var(--fluxo-bright)!important}
+.hub-actions .primary,.hub-win-controls button{background:linear-gradient(135deg,#caff20,#70d600)!important;color:#071006!important}
+.hub-avatar-empty,.lux-access-initial{background:linear-gradient(135deg,#a8ff00,#397d00)!important;color:#071006!important}
+.hub-mvp>span,.hub-mvp small,.hub-role.leader,.hub-role.recruiter,.hub-role.competitive{color:var(--fluxo-bright)!important}.hub-mvp>span{font-weight:700}
+.hub-role.leader,.hub-role.recruiter,.hub-role.competitive{background:#a8ff0015!important}
+#hub-editor-nav{border-bottom-color:var(--fluxo-line)!important;background:#070b08!important;color:var(--fluxo-bright)!important}
+#hub-modal-body{border-color:var(--fluxo-line-strong)!important;background:linear-gradient(145deg,#111711,#080c08)!important}
+#hub-modal-body header span,.hub-role-select{color:var(--fluxo-neon)!important}
+.hub-directory-search input,.hub-member-row-actions button{border-color:var(--fluxo-line)!important}.hub-member-row-actions button{background:#a8ff0010!important;color:var(--fluxo-bright)!important}.hub-member-row-actions button:last-child{background:var(--fluxo-neon)!important;color:#071006!important}
+.lux-login-box{border-color:var(--fluxo-line-strong)!important}.lux-login-primary{color:#071006!important}
+.lux-public-screen{background:radial-gradient(circle at 80% 0,#77d10015,transparent 30%),var(--fluxo-bg)!important}.lux-public-head h2 em{color:var(--fluxo-neon)!important}.lux-public-row>i,.lux-public-podium i{color:var(--fluxo-neon)!important}
+.lux-member-top-grid>article b,.lux-public-podium small,.lux-public-row>i,.lux-public-row small{color:var(--fluxo-bright)!important}
+.lux-rolebar{border-bottom-color:var(--fluxo-line)!important;background:#070b08f7!important}.lux-mode-dot{background:var(--fluxo-neon)!important;box-shadow:0 0 9px var(--fluxo-neon)!important}
+.lux-role-actions button.active,.lux-role-actions button:hover,.lux-leader-tools button:hover{color:var(--fluxo-neon)!important;border-color:var(--fluxo-neon)!important;background:#a8ff0012!important;box-shadow:0 0 12px #a8ff0030!important}
+.lux-leader-panel{border-color:var(--fluxo-line)!important;background:linear-gradient(135deg,#101710f5,#080c08f7)!important}.lux-leader-tools span,.lux-member-actions button,.lux-secondary-action,.lux-field-label{color:var(--fluxo-bright)!important}.lux-member-actions button:not(.danger),.lux-secondary-action{border-color:var(--fluxo-line)!important;background:#a8ff0010!important}
+.lux-member-card{border-color:var(--fluxo-line)!important;background:#090d09!important}.lux-member-art{background:#050806!important}.lux-empty-state{border-color:var(--fluxo-line)!important}
+.lux-v3-loading i{border-top-color:var(--fluxo-neon)!important}.lux-v3-empty{border-color:var(--fluxo-line)!important}.lux-capture-first{background:radial-gradient(circle at 90% 0,#a8ff0012,transparent 35%),linear-gradient(145deg,#111711,#080c08)!important}
+.lux-ocr-person label{color:var(--fluxo-bright)!important}.lux-ocr-person select{border-color:var(--fluxo-line)!important}.lux-participant-toggle,.lux-review-toolbar input,.lux-review-check input{accent-color:var(--fluxo-lime)!important}
+.lux-event-assignment b{background:var(--fluxo-neon)!important;color:#071006!important}.lux-announcement-pin{color:var(--fluxo-bright)!important}.lux-ranking-toolbar label{color:var(--fluxo-neon)!important}.lux-period-row em{color:var(--fluxo-bright)!important}.lux-backup-progress i{background:linear-gradient(90deg,#5fbd00,var(--fluxo-bright))!important}
+.lux-profile-stat-details>summary::after{color:var(--fluxo-neon)!important}.lux-access-control{border-color:var(--fluxo-line)!important;background:radial-gradient(circle at 100% 0,#a8ff0013,transparent 36%),linear-gradient(145deg,#111711,#080c08)!important}.lux-access-grid code{color:var(--fluxo-bright)!important}
+body.lux-hub-editor button:focus-visible,body.lux-hub-editor input:focus-visible,body.lux-hub-editor select:focus-visible{outline-color:var(--fluxo-neon)!important}
+.text-settings-card .text-style-toggle{background:linear-gradient(90deg,#a8ff0012,#ffffff06)!important}.text-settings-card .text-style-toggle:hover{background:#a8ff001a!important}
