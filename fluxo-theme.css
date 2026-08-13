@@ -123,3 +123,11 @@ input[type=checkbox],input[type=radio],.lux-participant-toggle,.lux-review-toolb
 .lux-profile-stat-details>summary::after{color:var(--fluxo-neon)!important}.lux-access-control{border-color:var(--fluxo-line)!important;background:radial-gradient(circle at 100% 0,#a8ff0013,transparent 36%),linear-gradient(145deg,#111711,#080c08)!important}.lux-access-grid code{color:var(--fluxo-bright)!important}
 body.lux-hub-editor button:focus-visible,body.lux-hub-editor input:focus-visible,body.lux-hub-editor select:focus-visible{outline-color:var(--fluxo-neon)!important}
 .text-settings-card .text-style-toggle{background:linear-gradient(90deg,#a8ff0012,#ffffff06)!important}.text-settings-card .text-style-toggle:hover{background:#a8ff001a!important}
+
+/* Resumen privado de cuentas: distingue registros, miembros visibles y
+   perfiles que todavia necesitan terminar el alta. */
+.lux-owner-account-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.lux-owner-account-summary article{min-width:0;padding:14px 10px;border:1px solid var(--fluxo-line);border-radius:14px;background:linear-gradient(145deg,#11170f,#090c08);text-align:center}
+.lux-owner-account-summary b{display:block;color:var(--fluxo-neon);font-size:clamp(1.35rem,3vw,2rem)}
+.lux-owner-account-summary small{color:#bec8b7;font-size:.68rem;letter-spacing:.08em}
+@media(max-width:700px){.lux-owner-account-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}

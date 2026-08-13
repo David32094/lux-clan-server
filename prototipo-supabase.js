@@ -1196,7 +1196,13 @@
   }
 
   function orderedDirectory() {
-    return [...state.directory.values()].filter(member => !member.membership_status || ['active','trial','reserve'].includes(member.membership_status)).sort((a, b) => {
+    return [...state.directory.values()].filter(member =>
+      member.onboarding_complete === true
+      && member.is_public === true
+      && ['active','trial','reserve'].includes(member.membership_status)
+      && !member.removed_at
+      && !member.merged_into
+    ).sort((a, b) => {
       const statsA = state.ranking.get(a.id) || {};
       const statsB = state.ranking.get(b.id) || {};
       return Number(statsB.victories_4v4 || 0) - Number(statsA.victories_4v4 || 0)
@@ -1288,16 +1294,30 @@
     setAdminSection('accounts');
     target.innerHTML = '<p class="hub-empty">Cargando cuentas seguras…</p>';
     try {
-      const rows = await rpc('owner_list_clan_users');
-      target.innerHTML = rows.length ? rows.map(row => {
+      const result = await rpc('owner_list_clan_users');
+      // Compatibilidad con la versión anterior de la RPC: aunque el servidor
+      // todavía entregue la papelera, nunca se mezcla con las cuentas activas.
+      const rows = (result || []).filter(row => !row.removed_at && !row.merged_into);
+      const activeCount = rows.filter(row => row.onboarding_complete && ['active','trial','reserve'].includes(row.membership_status)).length;
+      const incompleteCount = rows.filter(row => !row.onboarding_complete).length;
+      const pendingCount = rows.filter(row => row.onboarding_complete && row.membership_status === 'pending').length;
+      const summary = `<div class="lux-owner-account-summary"><article><b>${rows.length}</b><small>CUENTAS REALES</small></article><article><b>${activeCount}</b><small>EN EL CLAN Y RANKING</small></article><article><b>${pendingCount}</b><small>POR APROBAR</small></article><article><b>${incompleteCount}</b><small>PERFIL INCOMPLETO</small></article></div>`;
+      target.innerHTML = summary + (rows.length ? rows.map(row => {
         const connected = String(row.providers || '').split(',').map(item => item.trim()).filter(Boolean);
         const profile = state.directory.get(row.user_id);
         const canDelete = row.user_id !== state.user?.id;
         const currentRole = ['owner','leader','moderator','member'].includes(row.role) ? row.role : 'member';
+        const accountState = !row.onboarding_complete
+          ? 'PERFIL INCOMPLETO · NO APARECE EN RANKING'
+          : ['active','trial','reserve'].includes(row.membership_status)
+            ? 'EN EL CLAN · VISIBLE EN RANKING'
+            : row.membership_status === 'pending'
+              ? 'ESPERANDO APROBACIÓN'
+              : `${String(row.membership_status || 'inactivo').toUpperCase()} · FUERA DEL RANKING`;
         const roleOptions = ['member','moderator','leader'].map(role => `<option value="${role}"${currentRole === role ? ' selected' : ''}>${esc(roleLabel(role).toUpperCase())}</option>`).join('');
         const roleEditor = canDelete ? `<label class="lux-owner-role-field"><span>ROL</span><select id="lux-account-role-${esc(row.user_id)}" aria-label="Rol de ${esc(row.display_name || 'Jugador')}">${roleOptions}</select></label><button type="button" class="lux-role-save" onclick="window.luxSupabase.setAccountRole('${esc(row.user_id)}')">GUARDAR ROL</button>` : '<em>CUENTA OWNER</em>';
-        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${esc(roleLabel(currentRole).toUpperCase())} · ${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${row.display_name === 'Jugador' ? 'PERFIL PENDIENTE' : 'PERFIL ACTIVO'} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div><span class="lux-owner-actions">${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>SIN PERFIL</em>'}${roleEditor}${canDelete ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(row.user_id)}')">ELIMINAR</button>` : ''}</span></article>`;
-      }).join('') : '<p class="hub-empty">Todavía no hay cuentas registradas.</p>';
+        return `<article class="lux-owner-account">${avatarHtml(profile || { display_name:row.display_name, avatar_path:row.avatar_path }, 'lux-owner-avatar')}<div><strong>${esc(row.display_name || 'Jugador')}</strong><span>${esc(row.email || 'Sin correo visible')}</span><small>${esc(roleLabel(currentRole).toUpperCase())} · ${connected.includes('google') ? 'GOOGLE CONECTADO' : 'ACCESO ANTIGUO POR CORREO'} · ${esc(accountState)} · ${new Date(row.created_at).toLocaleDateString('es-ES')}</small></div><span class="lux-owner-actions">${profile ? `<button type="button" onclick="window.luxHub.openPlayer('${esc(row.user_id)}')">VER PERFIL</button>` : '<em>FICHA NO PÚBLICA</em>'}${roleEditor}${canDelete ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(row.user_id)}')">MOVER A PAPELERA</button>` : ''}</span></article>`;
+      }).join('') : '<p class="hub-empty">Todavía no hay cuentas registradas.</p>');
     } catch (error) {
       target.innerHTML = `<p class="hub-empty">No se pudo cargar el control de cuentas: ${esc(errorMessage(error))}</p>`;
     }
@@ -1328,14 +1348,15 @@
     const sessionLabel = $('lux-leader-session');
     if (sessionLabel) sessionLabel.textContent = state.isOwner ? 'Control privado · cuenta verificada' : `${roleLabel()} · cuenta verificada`;
     const [profiles, victories, ranking, roles] = await Promise.all([
-      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,banner_path,is_public,onboarding_complete,membership_status,public_slug,primary_game_role,secondary_game_role,experience_level,status_reason,removed_at,purge_after,merged_into,created_at&order=display_name.asc'),
+      request('/rest/v1/profiles?select=id,display_name,age,country_code,country_name,avatar_path,banner_path,is_public,onboarding_complete,membership_status,public_slug,primary_game_role,secondary_game_role,experience_level,status_reason,removed_at,purge_after,merged_into,created_at&onboarding_complete=eq.true&is_public=eq.true&membership_status=in.(active,trial,reserve)&removed_at=is.null&merged_into=is.null&order=display_name.asc'),
       request('/rest/v1/victories?select=id,player_id,mode,evidence_path,status,duplicate_risk,duplicate_of,created_at,rejection_reason&order=created_at.desc'),
       rpc('get_public_ranking', {}, false),
       rpc('staff_list_member_roles')
     ]);
     state.directory = new Map((profiles || []).map(row => [row.id, row]));
     state.roles = new Map((roles || []).map(row => [row.user_id, row.role]));
-    const approved = (victories || []).filter(row => row.status === 'approved');
+    const visibleIds = new Set((profiles || []).map(row => row.id));
+    const approved = (victories || []).filter(row => row.status === 'approved' && visibleIds.has(row.player_id));
     const byId = new Map((ranking || []).map(row => [row.player_id, row]));
     state.ranking = byId;
     const ordered = orderedDirectory();
@@ -1349,7 +1370,7 @@
     if ($('admin-ranking')) $('admin-ranking').innerHTML = ordered.map((member, index) => { const stats = byId.get(member.id) || {}; return `<button type="button" class="hub-rank" onclick="window.luxHub.openPlayer('${esc(member.id)}')"><i>#${index + 1}</i>${avatarHtml(member, 'hub-rank-avatar')}<span><strong>${esc(member.display_name)}</strong><small>${rankingModeLine(stats)} · TOTAL ${Number(stats.victories_total || 0)}</small></span><b>VER</b></button>`; }).join('') || '<p class="hub-empty">Aún no hay integrantes registrados.</p>';
     const duplicateRanking = document.querySelector('#hub-admin .hub-ranking');
     if (duplicateRanking) duplicateRanking.hidden = true;
-    const pendingVictories = (victories || []).filter(row => row.status === 'pending');
+    const pendingVictories = (victories || []).filter(row => row.status === 'pending' && visibleIds.has(row.player_id));
     state.pendingReviews = pendingVictories.length;
     if ($('admin-pending')) $('admin-pending').textContent = pendingVictories.length;
     renderReviewQueue(pendingVictories);
@@ -1506,6 +1527,7 @@
       const reason = $('lux-remove-reason')?.value.trim() || 'Expulsado desde el panel';
       await rpc('staff_soft_delete_member', { p_user_id:target.id, p_reason:reason });
       state.directory.delete(target.id); state.ranking.delete(target.id); state.roles.delete(target.id);
+      state.publicDirectory.delete(target.id); state.publicPlates.delete(target.id);
       closeMemberRemoval(); closePlayer();
       await Promise.all([renderAdmin(), renderPublic()]);
       if (state.isOwner && $('lux-owner-panel')?.hidden === false) await showOwnerAccounts();

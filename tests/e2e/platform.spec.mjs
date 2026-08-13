@@ -3,8 +3,9 @@ import { test, expect } from '@playwright/test';
 const user = { id:'11111111-1111-4111-8111-111111111111', email:'player@example.test', user_metadata:{ full_name:'Jugador de prueba' }, app_metadata:{ providers:['google'] } };
 const activeProfile = { id:user.id, display_name:'DAVID TEST', age:19, country_code:'br', country_name:'Brasil', avatar_path:null, onboarding_complete:true, membership_status:'active', is_public:true, public_slug:'david-test', primary_game_role:'Rusher', secondary_game_role:'Soporte', experience_level:'Competitivo' };
 
-async function mockSupabase(page, { profile=activeProfile, role='member' }={}) {
+async function mockSupabase(page, { profile=activeProfile, role='member', accounts=[] }={}) {
   let currentProfile = profile ? { ...profile } : null;
+  let currentAccounts = accounts.map(account => ({ ...account }));
   await page.route('**/supabase-client-config.js*', route => route.fulfill({ contentType:'text/javascript', body:"window.LUX_SUPABASE_CONFIG=Object.freeze({url:'https://test.supabase.co',publishableKey:'sb_publishable_test'});" }));
   await page.route('https://test.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
@@ -23,6 +24,13 @@ async function mockSupabase(page, { profile=activeProfile, role='member' }={}) {
     if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory') || url.pathname.includes('/rest/v1/rpc/get_clan_directory')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id }] : []);
     if (url.pathname.includes('/rest/v1/rpc/get_period_ranking')) return json([]);
     if (url.pathname.includes('/rest/v1/rpc/get_clan_access_settings')) return json([{ access_mode:'open', updated_at:new Date().toISOString() }]);
+    if (url.pathname.includes('/rest/v1/rpc/owner_list_clan_users')) return json(currentAccounts);
+    if (url.pathname.includes('/rest/v1/rpc/owner_list_removed_users')) return json(currentAccounts.filter(account => account.removed_at && !account.merged_into));
+    if (url.pathname.includes('/rest/v1/rpc/staff_soft_delete_member')) {
+      const payload = JSON.parse(request.postData() || '{}');
+      currentAccounts = currentAccounts.filter(account => account.user_id !== payload.p_user_id);
+      return json(null);
+    }
     if (url.pathname.includes('/storage/v1/object/sign/')) return json({ signedURL:'/object/sign/mock' });
     if (url.pathname.includes('/rest/v1/rpc/')) return json([]);
     if (request.method() === 'POST' || request.method() === 'PATCH' || request.method() === 'DELETE') return json([]);
@@ -194,6 +202,30 @@ test('el lector de partidas prepara marcador, resultado y jugador conocido', asy
   expect(parsed.scoreAgainst).toBe(4);
   expect(parsed.matched[0]?.playerId).toBe(user.id);
   expect(parsed.matched[0]?.damage).toBe(5791);
+});
+
+test('eliminar una cuenta la quita de Cuentas y no mezcla la papelera', async ({ page }) => {
+  const targetId = '22222222-2222-4222-8222-222222222222';
+  const removedId = '33333333-3333-4333-8333-333333333333';
+  let removalRequested = false;
+  const row = (id,email,name,extra={}) => ({ user_id:id,email,display_name:name,role:'member',providers:'google',created_at:new Date().toISOString(),last_sign_in_at:new Date().toISOString(),onboarding_complete:true,membership_status:'active',removed_at:null,purge_after:null,merged_into:null,...extra });
+  await mockSupabase(page, { role:'owner', accounts:[
+    row(user.id,user.email,activeProfile.display_name,{ role:'owner' }),
+    row(targetId,'target@example.test','INTEGRANTE ACTIVO'),
+    row(removedId,'trash@example.test','CUENTA EN PAPELERA',{ membership_status:'expelled',removed_at:new Date().toISOString(),purge_after:new Date(Date.now()+86400000).toISOString() })
+  ] });
+  page.on('request', request => { if (request.url().includes('/rpc/staff_soft_delete_member')) removalRequested = true; });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await page.evaluate(() => window.luxSupabase.navigateAdmin('accounts'));
+  await expect(page.getByText('target@example.test')).toBeVisible();
+  await expect(page.getByText('trash@example.test')).toHaveCount(0);
+  await page.locator('.lux-owner-account', { hasText:'target@example.test' }).getByRole('button', { name:/mover a papelera/i }).click();
+  await page.locator('#lux-remove-reason').fill('Prueba de consistencia');
+  await page.locator('#lux-remove-confirm').click();
+  await expect.poll(() => removalRequested).toBe(true);
+  await expect(page.getByText('target@example.test')).toHaveCount(0);
 });
 
 test('el lector separa aliados y rivales en una captura de Free Fire', async ({ page }) => {

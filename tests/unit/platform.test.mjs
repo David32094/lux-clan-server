@@ -72,6 +72,22 @@ test('el acceso general se puede abrir, aprobar o limitar por invitacion', async
   assert.match(sql, /membership_status='active'/i);
 });
 
+test('cuentas, integrantes y rankings comparten la misma regla de visibilidad', async () => {
+  const [sql,client,operations] = await Promise.all([
+    read('supabase/migrations/20260813_account_directory_consistency.sql'),
+    read('prototipo-supabase.js'),
+    read('lux-platform-v3.js')
+  ]);
+  assert.match(sql, /owner_list_removed_users/i);
+  assert.match(sql, /where \(p\.id is null or \(p\.removed_at is null and p\.merged_into is null\)\)/i);
+  assert.match(sql, /membership_status='expelled'/i);
+  assert.match(sql, /update public\.user_roles set role='member'/i);
+  assert.match(sql, /profiles_enforce_visibility/i);
+  assert.match(client, /removed_at=is\.null&merged_into=is\.null/);
+  assert.match(client, /MOVER A PAPELERA/);
+  assert.match(operations, /owner_list_removed_users/);
+});
+
 test('el OCR separa los dos equipos antes de comparar integrantes', async () => {
   const ocr = await read('lux-match-ocr.js');
   assert.match(ocr, /selectClanSide/);

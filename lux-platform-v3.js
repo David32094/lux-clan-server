@@ -529,11 +529,10 @@
     const accessObserver=new MutationObserver(()=>{if(panel.childElementCount){accessObserver.disconnect();renderAccessControl();}});
     accessObserver.observe(panel,{childList:true});
     if(!appState().directory.size)await core().renderAdmin();
-    const [accounts,aliases,audit]=await Promise.all([
-      core().rpc('owner_list_clan_users'),core().rpc('staff_list_alias_conflicts').catch(()=>[]),
+    const [trash,aliases,audit]=await Promise.all([
+      core().rpc('owner_list_removed_users').catch(()=>core().rpc('owner_list_clan_users').then(rows=>rows.filter(row=>row.removed_at&&!row.merged_into)).catch(()=>[])),core().rpc('staff_list_alias_conflicts').catch(()=>[]),
       core().request('/rest/v1/audit_log?select=*&order=created_at.desc&limit=40').catch(()=>[])
     ]);
-    const trash=accounts.filter(row=>row.removed_at&&!row.merged_into);
     panel.innerHTML=`<section class="lux-v3-card"><header><div><span class="hub-kicker">CONTROL DEL OWNER</span><h2>Operaciones seguras</h2><p>Invitaciones, papelera, fusión de duplicados, alias, respaldo y auditoría en un solo lugar.</p></div>🔒</header><div class="lux-ops-grid">
       <article class="lux-ops-card"><h3>Invitación temporal</h3><p>Crea un enlace que acepta automáticamente a quien complete su perfil. El token vence y puede limitarse a un solo uso.</p><div class="lux-v3-grid"><label class="lux-v3-field">HORAS<input id="lux-invite-hours" type="number" min="1" max="720" value="72"/></label><label class="lux-v3-field">USOS<input id="lux-invite-uses" type="number" min="1" max="100" value="1"/></label></div><div class="lux-v3-actions"><button class="gold" onclick="window.luxPlatformV3.createInvite()">CREAR ENLACE</button></div><div id="lux-invite-output" class="lux-ops-output">Todavía no se creó una invitación.</div></article>
       <article class="lux-ops-card"><h3>Respaldo completo</h3><p>Incluye registros, roles, partidos, placas, alias, eventos, auditoría y copias de todas las imágenes de Storage.</p><div class="lux-backup-progress"><i id="lux-backup-bar"></i></div><div class="lux-v3-actions"><button class="primary" onclick="window.luxPlatformV3.downloadFullBackup()">DESCARGAR TODO</button><label class="lux-v3-button">RESTAURAR<input id="lux-restore-file" type="file" accept="application/json" hidden onchange="window.luxPlatformV3.restoreFullBackup(event)"/></label></div><div id="lux-backup-output" class="lux-ops-output">Listo para crear un respaldo.</div></article>
