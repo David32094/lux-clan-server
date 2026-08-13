@@ -124,26 +124,37 @@
   async function prepareImages(file) {
     const image = await loadImage(file);
     const full = prepareRegion(image, { x:0, y:0, width:1, height:1 }, 2000);
-    if (image.naturalWidth / image.naturalHeight < 1.35) return { full, teams:[] };
+    if (image.naturalWidth / image.naturalHeight < 1.35) {
+      return { full, table:null, columns:[], teamNames:[], teamStats:[], scoreDigits:[] };
+    }
 
-    // En la pantalla final de Free Fire las filas de ambos equipos aparecen
-    // en la franja central. Leer cada mitad por separado evita que Tesseract
-    // mezcle el nombre de un aliado con las cifras de un rival situado en la
-    // misma línea horizontal.
-    const table = { y:.405, height:.205 };
-    const left = { x:.045, y:table.y, width:.445, height:table.height };
-    const right = { x:.505, y:table.y, width:.445, height:table.height };
+    // Free Fire dibuja hasta cuatro filas entre el 42% y el 77% de la imagen.
+    // Separamos la columna NOMBRE de K/D/A + DMG antes del OCR: reconocer una
+    // mitad completa mezclaba iconos y estadisticas con el nombre del jugador.
+    const table = { y:.42, height:.35 }, rowStarts = [.437,.514,.591,.668];
+    const columns = [
+      { side:'left', names:{ x:.128, width:.155 }, stats:{ x:.282, y:table.y, width:.112, height:table.height } },
+      { side:'right', names:{ x:.579, width:.153 }, stats:{ x:.731, y:table.y, width:.112, height:table.height } }
+    ];
     return {
       full,
-      teams:[
-        { side:'left', variant:'color', canvas:prepareRegion(image, left, 1750, 'color') },
-        { side:'left', variant:'inverted', canvas:prepareRegion(image, left, 1750, 'inverted') },
-        { side:'right', variant:'color', canvas:prepareRegion(image, right, 1750, 'color') },
-        { side:'right', variant:'inverted', canvas:prepareRegion(image, right, 1750, 'inverted') }
-      ],
+      table,
+      columns,
+      teamNames:columns.flatMap(column => rowStarts.flatMap((y,rowIndex) => ['color','gray'].map(variant => ({
+        side:column.side,kind:'name',rowIndex,variant,
+        canvas:prepareRegion(image,{ x:.135 + (column.side === 'right' ? .451 : 0),y,width:.143,height:.047 },900,variant)
+      })))),
+      teamStats:columns.flatMap(column => ['color','gray'].map(variant => ({
+        side:column.side,kind:'stats',variant,
+        canvas:prepareRegion(image,column.stats,900,variant)
+      }))),
       scoreDigits:[
-        { side:'left', canvas:prepareRegion(image, { x:.405, y:.285, width:.06, height:.105 }, 650, 'whiteText') },
-        { side:'right', canvas:prepareRegion(image, { x:.515, y:.285, width:.06, height:.105 }, 650, 'whiteText') }
+        { side:'left', canvas:prepareRegion(image, { x:.407, y:.317, width:.042, height:.066 }, 500, 'color') },
+        { side:'left', canvas:prepareRegion(image, { x:.407, y:.317, width:.042, height:.066 }, 500, 'gray') },
+        { side:'left', canvas:prepareRegion(image, { x:.407, y:.317, width:.042, height:.066 }, 500, 'whiteText') },
+        { side:'right', canvas:prepareRegion(image, { x:.520, y:.317, width:.042, height:.066 }, 500, 'color') },
+        { side:'right', canvas:prepareRegion(image, { x:.520, y:.317, width:.042, height:.066 }, 500, 'gray') },
+        { side:'right', canvas:prepareRegion(image, { x:.520, y:.317, width:.042, height:.066 }, 500, 'whiteText') }
       ]
     };
   }
@@ -191,11 +202,18 @@
   function lineStats(text) {
     const normalized = String(text || '').replace(/[|Il]/g, '1').replace(/[Oo]/g, '0');
     const slash = normalized.match(/(?:^|\s)(\d{1,3})\s*[\/:]\s*(\d{1,3})\s*[\/:]\s*(\d{1,3})(?:\s+|.*?\s)(\d{2,7})(?:\s|$)/);
-    if (slash) return { kills:safeNumber(slash[1],999), deaths:safeNumber(slash[2],999), assists:safeNumber(slash[3],999), damage:safeNumber(slash[4]), confirmed:true };
+    if (slash) {
+      const values=[safeNumber(slash[1],999),safeNumber(slash[2],999),safeNumber(slash[3],999),safeNumber(slash[4])];
+      if (values.slice(0,3).every(value => value <= 99) && values[3] >= 100) {
+        return { kills:values[0], deaths:values[1], assists:values[2], damage:values[3], confirmed:true };
+      }
+    }
     const numbers = normalized.match(/\b\d{1,7}\b/g)?.map(value => safeNumber(value)) || [];
     if (numbers.length >= 4) {
       const damageIndex = numbers.findIndex((value, index) => index >= 2 && value >= 100);
-      if (damageIndex >= 2) return { kills:numbers[0], deaths:numbers[1], assists:damageIndex >= 3 ? numbers[2] : 0, damage:numbers[damageIndex], confirmed:true };
+      if (damageIndex >= 2 && numbers[0] <= 99 && numbers[1] <= 99 && (damageIndex < 3 || numbers[2] <= 99)) {
+        return { kills:numbers[0], deaths:numbers[1], assists:damageIndex >= 3 ? numbers[2] : 0, damage:numbers[damageIndex], confirmed:true };
+      }
     }
     return { kills:0, deaths:0, assists:0, damage:0, confirmed:false };
   }
@@ -206,6 +224,78 @@
       .replace(/\b\d{1,7}\b/g, ' ')
       .replace(/\b(?:KDA|DMG|DANO|DAMAGE|BAJAS|KILLS|MUERTES|ASSISTS?|NOMBRE|NAME|VICTORIA|DERROTA|BOOYAH|VS)\b/gi, ' ')
       .replace(/[^\p{L}\p{N}_\-\s]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+
+  function spatialLines(words, canvasWidth, canvasHeight, region, side, targetHeight) {
+    const filtered = words.filter(word => {
+      const x=(word.bbox.x0+word.bbox.x1)/2/canvasWidth,y=(word.bbox.y0+word.bbox.y1)/2/canvasHeight;
+      return x>=region.x&&x<=region.x+region.width&&y>=region.y&&y<=region.y+region.height;
+    }).map(word => ({ ...word,bbox:{ ...word.bbox,
+      x0:word.bbox.x0/canvasWidth*1000,x1:word.bbox.x1/canvasWidth*1000,
+      y0:(word.bbox.y0/canvasHeight-region.y)/region.height*targetHeight,
+      y1:(word.bbox.y1/canvasHeight-region.y)/region.height*targetHeight
+    }}));
+    return clusterLines(filtered,targetHeight,side);
+  }
+
+  function cleanNameColumnText(text) {
+    return String(text || '')
+      .replace(/\d{1,3}\s*[\/:]\s*\d{1,3}\s*[\/:]\s*\d{1,3}/g, ' ')
+      .replace(/\b(?:FLUXO|LUX\s*UP|CLAN)\b/gi, ' ')
+      .replace(/\b(?:K\s*D\s*A|DMG|DANO|DAMAGE|NOMBRE|NAME)\b/gi, ' ')
+      .replace(/[^\p{L}\p{N}_\-\s]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0,80);
+  }
+
+  function nameQuality(value) {
+    const name = cleanNameColumnText(value), tokens = name.split(/\s+/).filter(Boolean);
+    const normalizedTokens = tokens.map(normalizeName).filter(Boolean);
+    if (!name || !/[\p{L}]/u.test(name) || normalizeName(name).length < 3 || tokens.length > 5) return 0;
+    if (tokens.length >= 3 && normalizedTokens.every(token => token.length <= 2)) return 0;
+    if (/^(?:VS|KDA|DMG|DANO|DAMAGE|NOMBRE|NAME|VICTORIA|DERROTA|BOOYAH)$/i.test(normalizeName(name))) return 0;
+    const longTokens = normalizedTokens.filter(token => token.length >= 3).length;
+    return Math.min(1, .42 + Math.min(12, normalizeName(name).length) / 30 + longTokens * .1);
+  }
+
+  function buildPlayerLines(nameLines, statLines, side, candidates, height) {
+    const groups = [];
+    nameLines.map(line => ({ ...line, gameName:cleanNameColumnText(line.text) }))
+      .filter(line => nameQuality(line.gameName) > 0)
+      .sort((a,b) => a.y - b.y)
+      .forEach(line => {
+        const rowIndex=Number.isInteger(line.rowIndex)
+          ? line.rowIndex
+          : Math.max(0,Math.min(3,Math.floor(line.y/(height/4))));
+        let group=groups.find(item => item.rowIndex === rowIndex);
+        if (!group) { group = { y:height*(rowIndex+.5)/4,rowIndex,lines:[] }; groups.push(group); }
+        group.lines.push(line);
+      });
+
+    const usableStats = statLines.map(line => ({ ...line, stats:lineStats(line.text) })).filter(line => line.stats.confirmed);
+    const mapped = groups.map((group,rowIndex) => {
+      const options = group.lines.map(line => {
+        const match = bestMatch(line.gameName, candidates), quality = nameQuality(line.gameName);
+        return { ...line, matchScore:match?.score || 0, rank:(match?.score || 0) * 125 + line.confidence * .32 + quality * 22 };
+      }).sort((a,b) => b.rank - a.rank);
+      const name = options[0];
+      const nearestStat = usableStats.map(line => ({ ...line, distance:Math.abs(line.y - group.y) }))
+        .filter(line => line.distance <= height * .105).sort((a,b) => a.distance - b.distance || b.confidence - a.confidence)[0];
+      const stats = nearestStat?.stats || { kills:0,deaths:0,assists:0,damage:0,confirmed:false };
+      return {
+        text:`${name.gameName}${nearestStat ? ` ${nearestStat.text}` : ''}`,
+        gameName:name.gameName,
+        stats,
+        confidence:Math.round((name.confidence * 2 + (nearestStat?.confidence || name.confidence)) / 3),
+        y:group.y,side,kind:'player',rowIndex:group.rowIndex ?? rowIndex,matchScore:name.matchScore
+      };
+    }).filter(line => nameQuality(line.gameName) > 0);
+    const byRow=new Map();
+    mapped.forEach(line=>{
+      const key=Number.isInteger(line.rowIndex)?line.rowIndex:Math.max(0,Math.min(3,Math.floor(line.y/(height/4))));
+      const current=byRow.get(key),score=(line.matchScore||0)*150+line.confidence+(line.confirmed?45:0);
+      const currentScore=current?(current.matchScore||0)*150+current.confidence+(current.confirmed?45:0):-1;
+      if(!current||score>currentScore)byRow.set(key,line);
+    });
+    return [...byRow.values()].sort((a,b)=>a.y-b.y).slice(0,4);
   }
 
   function candidateDirectory(context) {
@@ -235,7 +325,7 @@
       const sideLines = lines.filter(line => line.side === side);
       let recognized = 0, strong = 0, clanMarks = 0;
       sideLines.forEach(line => {
-        const name = cleanPlayerText(line.text), match = bestMatch(name, candidates);
+        const name = line.gameName || cleanPlayerText(line.text), match = bestMatch(name, candidates);
         if ((match?.score || 0) >= .5) recognized += match.score;
         if (match?.auto) strong += 1;
         if (match?.playerId === currentPlayerId && match.score >= .58) recognized += 6;
@@ -263,19 +353,43 @@
     const playerLines = selectedTeam.lines.length ? selectedTeam.lines : lines;
 
     playerLines.forEach((line, index) => {
-      const stats = lineStats(line.text), gameName = cleanPlayerText(line.text);
-      if (gameName.length < 2) return;
+      const stats = line.stats || lineStats(line.text), gameName = line.gameName || cleanPlayerText(line.text);
+      if (nameQuality(gameName) <= 0) return;
       const match = bestMatch(gameName, candidates);
       if (match?.auto) {
-        const detectedName = match.score >= .92 ? gameName : match.gameName;
+        const ocrLength=normalizeName(gameName).length,candidateLength=normalizeName(match.gameName).length;
+        const detectedName = match.score >= .92 && ocrLength >= candidateLength * .82 ? gameName : match.gameName;
         const candidate = { playerId:match.playerId, gameName, detectedName, matchedBy:match.source, confidence:Math.round(match.score * 100), ...stats };
         const current = matchedByPlayer.get(match.playerId);
         const candidateQuality = (stats.confirmed ? 200 : 0) + match.score * 100 + line.confidence / 10;
         const currentQuality = current ? (current.confirmed ? 200 : 0) + current.confidence + (current.ocrConfidence || 0) / 10 : -1;
         if (!current || candidateQuality > currentQuality) matchedByPlayer.set(match.playerId, { ...candidate, ocrConfidence:line.confidence });
-      } else if ((stats.confirmed || (match?.score || 0) >= .58) && unmatched.length < 4) {
+      } else if (((stats.confirmed && line.kind === 'player' && line.confidence >= 18) || (match?.score || 0) >= .58) && unmatched.length < 4) {
         unmatched.push({ id:`ocr-${index}`, gameName, suggestionId:match?.playerId || '', confidence:Math.round((match?.score || line.confidence / 100) * 100), ...stats });
       }
+    });
+
+    // Respaldo para nombres estilizados: si el recorte de la fila pierde un
+    // jugador, lo recuperamos de la lectura completa solo cuando coincide con
+    // mucha claridad con un integrante o alias conocido. Nunca inventa un
+    // nombre nuevo ni usa una fila rival como sugerencia libre.
+    const recoveryLines=selectedTeam.side === 'unknown'
+      ? lines.filter(line => line.kind === 'player')
+      : selectedTeam.lines;
+    candidates.forEach(candidate => {
+      if (matchedByPlayer.has(candidate.playerId) || matchedByPlayer.size >= 4) return;
+      const bestLine = recoveryLines.map(line => {
+        const gameName=line.gameName || cleanPlayerText(line.text),score=similarity(gameName,candidate.gameName);
+        return { line,gameName,score };
+      }).filter(item=>item.score>=.72).sort((a,b)=>b.score-a.score || b.line.confidence-a.line.confidence)[0];
+      if (!bestLine) return;
+      const stats=bestLine.line.stats || lineStats(bestLine.line.text);
+      matchedByPlayer.set(candidate.playerId,{
+        playerId:candidate.playerId,gameName:bestLine.gameName,
+        detectedName:bestLine.score>=.92 && normalizeName(bestLine.gameName).length>=normalizeName(candidate.gameName).length*.82
+          ? bestLine.gameName:candidate.gameName,
+        matchedBy:candidate.source,confidence:Math.round(bestLine.score*100),...stats
+      });
     });
 
     let scoreFor = score?.scoreFor ?? (result === 'win' ? 1 : 0);
@@ -283,6 +397,7 @@
     if (selectedTeam.side === 'right' && score) [scoreFor, scoreAgainst] = [scoreAgainst, scoreFor];
     const uniqueUnmatched = new Map();
     unmatched.forEach(entry => {
+      if (entry.suggestionId && matchedByPlayer.has(entry.suggestionId)) return;
       const key = entry.suggestionId
         ? `suggestion:${entry.suggestionId}:${entry.kills}:${entry.deaths}:${entry.damage}`
         : `name:${normalizeName(entry.gameName)}:${entry.kills}:${entry.deaths}:${entry.damage}`;
@@ -309,16 +424,42 @@
       worker = await Tesseract.createWorker('eng', 1, { logger:message => {
         if (message.status === 'recognizing text') onProgress(20 + Math.round((message.progress || 0) * 25), `Leyendo la pantalla ${Math.round((message.progress || 0) * 100)}%`);
       }});
-      await worker.setParameters?.({ preserve_interword_spaces:'1' });
+      await worker.setParameters?.({ preserve_interword_spaces:'1', tessedit_pageseg_mode:'6' });
       const result = await worker.recognize(images.full, {}, { blocks:true, text:true });
       const fullWords = collectWords(result.data), fullLines = clusterLines(fullWords, images.full.height);
-      const teamLines = [], scoreLines = [], scoreDigits = { left:[], right:[] };
-      for (let index = 0; index < images.teams.length; index += 1) {
-        const region = images.teams[index];
-        onProgress(44 + index * 10, `Separando ${region.side === 'left' ? 'el equipo izquierdo' : 'el equipo derecho'}`);
-        const teamResult = await worker.recognize(region.canvas, {}, { blocks:true, text:true });
-        teamLines.push(...clusterLines(collectWords(teamResult.data), region.canvas.height, region.side));
+      const candidates = candidateDirectory(context), nameLines = { left:[],right:[] }, statLines = { left:[],right:[] };
+      const scoreLines = [], scoreDigits = { left:[], right:[] };
+      // Una lectura del lienzo completo conserva la alineacion vertical y
+      // rescata nombres decorados que se pierden al recortar demasiado.
+      ['left','right'].forEach(side => {
+        const column=images.columns.find(item=>item.side===side),targetHeight=1400;
+        if (!column || !images.table) return;
+        nameLines[side].push(...spatialLines(fullWords,images.full.width,images.full.height,
+          { x:column.names.x,y:images.table.y,width:column.names.width,height:images.table.height },side,targetHeight)
+          .map(line=>({ ...line,variant:'full-spatial' })));
+        statLines[side].push(...spatialLines(fullWords,images.full.width,images.full.height,
+          { x:column.stats.x,y:images.table.y,width:column.stats.width,height:images.table.height },side,targetHeight)
+          .map(line=>({ ...line,variant:'full-spatial' })));
+      });
+      for (let index = 0; index < images.teamNames.length; index += 1) {
+        const region = images.teamNames[index];
+        onProgress(40 + index * 4, `Leyendo fila ${region.rowIndex+1} del equipo ${region.side === 'left' ? 'izquierdo' : 'derecho'}`);
+        await worker.setParameters?.({ preserve_interword_spaces:'1', tessedit_pageseg_mode:'7', tessedit_char_whitelist:'' });
+        const rowResult = await worker.recognize(region.canvas, {}, { blocks:true, text:true });
+        nameLines[region.side].push(...clusterLines(collectWords(rowResult.data),region.canvas.height,region.side)
+          .map(line=>({ ...line,rowIndex:region.rowIndex,variant:region.variant })));
       }
+      for (let index = 0; index < images.teamStats.length; index += 1) {
+        const region=images.teamStats[index];
+        onProgress(76 + index * 4,`Leyendo estadisticas del equipo ${region.side === 'left' ? 'izquierdo' : 'derecho'}`);
+        await worker.setParameters?.({ preserve_interword_spaces:'1',tessedit_pageseg_mode:'6',tessedit_char_whitelist:'0123456789/:' });
+        const statResult=await worker.recognize(region.canvas,{}, {blocks:true,text:true});
+        statLines[region.side].push(...clusterLines(collectWords(statResult.data),region.canvas.height,region.side)
+          .map(line=>({ ...line,y:line.y/region.canvas.height*1400,variant:region.variant })));
+      }
+      const playerLines = ['left','right'].flatMap(side => {
+        return buildPlayerLines(nameLines[side],statLines[side],side,candidates,1400);
+      });
       await worker.setParameters?.({ tessedit_pageseg_mode:'10', tessedit_char_whitelist:'0123456789' });
       for (let index = 0; index < (images.scoreDigits || []).length; index += 1) {
         const digitRegion = images.scoreDigits[index];
@@ -327,9 +468,12 @@
         const digit = String(scoreResult.data?.text || '').match(/\d{1,2}/)?.[0];
         if (digit) scoreDigits[digitRegion.side].push(digit);
       }
-      if (scoreDigits.left[0] && scoreDigits.right[0]) scoreLines.push({ text:`${scoreDigits.left[0]} VS ${scoreDigits.right[0]}`, confidence:90, y:0, side:'unknown' });
-      const lines = teamLines.length ? [...fullLines, ...teamLines, ...scoreLines] : [...fullLines, ...scoreLines];
-      const rawText = [result.data?.text, ...teamLines.map(line => line.text), ...scoreLines.map(line => line.text)].filter(Boolean).join('\n');
+      const preferredDigit=values=>[...new Set(values)].map(value=>({ value,count:values.filter(item=>item===value).length }))
+        .sort((a,b)=>b.count-a.count)[0]?.value;
+      const leftScore=preferredDigit(scoreDigits.left),rightScore=preferredDigit(scoreDigits.right);
+      if (leftScore && rightScore) scoreLines.push({ text:`${leftScore} VS ${rightScore}`, confidence:90, y:0, side:'unknown' });
+      const lines = playerLines.length ? [...fullLines, ...playerLines, ...scoreLines] : [...fullLines, ...scoreLines];
+      const rawText = [result.data?.text, ...playerLines.map(line => line.text), ...scoreLines.map(line => line.text)].filter(Boolean).join('\n');
       onProgress(94, 'Comparando nombres con los integrantes');
       const parsed = parseResult(lines, rawText, context);
       onProgress(100, 'Borrador listo para revisar');
@@ -339,5 +483,5 @@
     }
   }
 
-  window.luxMatchOCR = Object.freeze({ analyze, parseResult, normalizeName, similarity });
+  window.luxMatchOCR = Object.freeze({ analyze, parseResult, normalizeName, similarity, nameQuality });
 })();

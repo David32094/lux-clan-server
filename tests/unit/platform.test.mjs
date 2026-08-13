@@ -94,6 +94,10 @@ test('el OCR separa los dos equipos antes de comparar integrantes', async () => 
   assert.match(ocr, /side:'left'/);
   assert.match(ocr, /side:'right'/);
   assert.match(ocr, /prepareRegion/);
+  assert.match(ocr, /kind:'name'/);
+  assert.match(ocr, /kind:'stats'/);
+  assert.match(ocr, /buildPlayerLines/);
+  assert.match(ocr, /nameQuality/);
 });
 
 test('no se publicó ninguna clave privada de Supabase', async () => {

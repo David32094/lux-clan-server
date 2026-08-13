@@ -249,6 +249,22 @@ test('el lector separa aliados y rivales en una captura de Free Fire', async ({ 
   expect(parsed.matched.map(row => row.playerId)).not.toContain('mikelito');
 });
 
+test('el lector rechaza fragmentos de estadisticas como nombres', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => typeof window.luxMatchOCR?.nameQuality)).toBe('function');
+  const result = await page.evaluate(() => ({
+    first:window.luxMatchOCR.nameQuality('m n Mk MH'),
+    second:window.luxMatchOCR.nameQuality('IR pS pd is'),
+    niko:window.luxMatchOCR.nameQuality('EDUxNIKO'),
+    chris:window.luxMatchOCR.nameQuality('CHRISX AURA')
+  }));
+  expect(result.first).toBe(0);
+  expect(result.second).toBe(0);
+  expect(result.niko).toBeGreaterThan(0.7);
+  expect(result.chris).toBeGreaterThan(0.7);
+});
+
 test('el ranking conserva la misma cabecera de integrante y administrador', async ({ page }) => {
   await mockSupabase(page, { role:'owner' });
   await page.goto(oauthUrl());
