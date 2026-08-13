@@ -20,6 +20,7 @@ const files = [
   'prototipo-placas-ocr.js',
   'prototipo-supabase.js',
   'lux-simple-ui.css',
+  'fluxo-theme.css',
   'lux-match-ocr.js',
   'lux-platform-v3.js',
   'lux-platform-v3.css',
@@ -27,7 +28,8 @@ const files = [
   'INTEGRANTES/base.png',
   'ENFRETAMIENTOS/base.png',
   'ENFRETAMIENTOS/OVERLAY POR ENCIMA DE LA FOTO DEL RESULTADO.png',
-  'ICONOS/ChatGPT Image 7 ago 2026, 05_48_09 a.m..png'
+  'ICONOS/ChatGPT Image 7 ago 2026, 05_48_09 a.m..png',
+  'ICONOS/FLUXO_LOGO.png'
 ];
 
 await rm(output, { recursive:true, force:true });
