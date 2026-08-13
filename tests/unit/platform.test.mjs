@@ -46,7 +46,7 @@ test('el OCR conserva confianza por campo y admite varias capturas', async () =>
   assert.match(ocr, /gloryWeekConfidence/i);
 });
 
-test('las partidas usan captura primero, OCR corregible y aprobacion por lote', async () => {
+test('las partidas ocultan el OCR al integrante y dejan la correccion a la lider', async () => {
   const [ocr,platform,sql] = await Promise.all([
     read('lux-match-ocr.js'),
     read('lux-platform-v3.js'),
@@ -55,7 +55,9 @@ test('las partidas usan captura primero, OCR corregible y aprobacion por lote', 
   assert.match(ocr, /parseResult/);
   assert.match(ocr, /scoreFor/);
   assert.match(ocr, /lineStats/);
-  assert.match(platform, /LEER CAPTURA AUTOMÁTICAMENTE/);
+  assert.match(platform, /Envía la captura y listo/);
+  assert.match(platform, /REVISIÓN VISUAL/);
+  assert.match(platform, /¿QUÉ INTEGRANTE ES\?/);
   assert.match(platform, /APROBAR SELECCIONADAS/);
   assert.match(sql, /get_active_game_aliases/i);
   assert.match(sql, /staff_update_pending_match/i);

@@ -175,18 +175,55 @@ test('victorias y partidos se envían a RPC segura', async ({ page }) => {
   await expect.poll(() => secureRpc).toBe(true);
 });
 
-test('registrar partido pide solo modo y captura y deja el resto como correccion opcional', async ({ page }) => {
+test('el integrante solo ve captura y enviar; el OCR queda oculto', async ({ page }) => {
   await mockSupabase(page);
   await page.goto(oauthUrl());
   await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
   await page.evaluate(() => window.luxSupabase.openMember('matches'));
-  await expect(page.locator('#lux-match-mode')).toBeVisible();
   await expect(page.locator('#lux-match-file')).toBeVisible();
-  await expect(page.getByRole('button', { name:/leer captura automáticamente/i })).toBeVisible();
-  await expect(page.locator('#lux-match-details')).not.toHaveAttribute('open');
-  await page.locator('#lux-match-details summary').click();
-  await expect(page.locator('#lux-match-result')).toBeVisible();
-  await expect(page.locator('.lux-v3-help').filter({hasText:/K\/D\/A.*bajas.*muertes.*asistencias/i})).toBeVisible();
+  await expect(page.getByRole('button', { name:/enviar a la líder/i })).toBeVisible();
+  await expect(page.getByRole('button', { name:/leer captura|preparar resumen/i })).toHaveCount(0);
+  await expect(page.locator('#lux-match-details')).toHaveCount(0);
+  await expect(page.locator('.lux-match-participant')).toHaveCount(0);
+});
+
+test('la lider recibe un tablero con fotos, KDA, daño y nombre por confirmar', async ({ page }) => {
+  const matchId='44444444-4444-4444-8444-444444444444';
+  const notes='@AUTO1;map=BERMUDA;type=DUELO%20DE%20ESCUADRAS;tf=FLUXO;ta=SILENCIADORES;conf=91;u=CHRISX%20AURA~5~7~3~1836~82~1';
+  const reviewRequests=[];
+  await mockSupabase(page, { role:'owner' });
+  await page.route('https://test.supabase.co/rest/v1/matches**', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{id:matchId,mode:'4v4',played_at:new Date().toISOString(),opponent:'SILENCIADORES',result:'win',score_for:7,score_against:5,status:'pending',notes,evidence_path:`${user.id}/matches/test.png`,duplicate_risk:false,submitted_by:user.id}]),headers:{'access-control-allow-origin':'*'}}));
+  await page.route('https://test.supabase.co/rest/v1/match_participants**', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{match_id:matchId,player_id:user.id,game_name:'FX 07',team_role:'Rusher',kills:13,deaths:7,assists:4,damage:4286,is_mvp:false,stats_confirmed:true}]),headers:{'access-control-allow-origin':'*'}}));
+  page.on('request', request => {
+    if (/\/rpc\/(staff_update_pending_match|review_match)$/.test(new URL(request.url()).pathname)) {
+      reviewRequests.push({ url:request.url(), payload:request.postDataJSON() });
+    }
+  });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxPlatformV3.navigateAdmin('matches'));
+  await expect(page.locator('.lux-scoreboard')).toBeVisible();
+  await expect(page.locator('.lux-review-player')).toContainText('K/D/A');
+  await expect(page.locator('.lux-review-player')).toContainText('13/7/4');
+  await expect(page.locator('.lux-review-player')).toContainText('4286');
+  await expect(page.getByText(/¿qué integrante es\?/i)).toBeVisible();
+  await expect(page.locator('.lux-review-unknown select')).toBeVisible();
+  await page.locator('.lux-review-unknown select').selectOption(user.id);
+  await page.locator('.lux-scoreboard').getByRole('button', { name:'APROBAR', exact:true }).click();
+  await expect.poll(() => reviewRequests.length).toBe(2);
+  const correction=reviewRequests.find(request => request.url.includes('/staff_update_pending_match'));
+  expect(correction.payload.p_participants).toEqual([expect.objectContaining({
+    player_id:user.id,
+    game_name:'CHRISX AURA',
+    kills:5,
+    deaths:7,
+    assists:3,
+    damage:1836
+  })]);
+  expect(reviewRequests.find(request => request.url.includes('/review_match')).payload).toEqual(expect.objectContaining({
+    p_match_id:matchId,
+    p_status:'approved'
+  }));
 });
 
 test('el lector de partidas prepara marcador, resultado y jugador conocido', async ({ page }) => {
