@@ -199,7 +199,8 @@
     if(!result){target.innerHTML='<p class="lux-v3-empty compact">El análisis es opcional. Si no lo usas, solo envía la captura y el modo; la líder podrá corregir lo demás.</p>';return;}
     const matched=[...state.matchDetected.entries()].map(([id,row])=>{const member=currentRoster().find(item=>profileId(item)===id)||{display_name:'Integrante'};return `<article class="lux-ocr-person is-matched">${avatar(member)}<div><strong>${esc(profileName(member))}</strong><small>Leído como ${esc(row.detectedName||row.gameName||profileName(member))} · ${Number(row.confidence||0)}% confianza${row.confirmed?` · ${row.kills}/${row.deaths}/${row.assists} · ${row.damage} daño`:' · estadísticas opcionales'}</small></div><b>✓</b></article>`;}).join('');
     const unmatched=state.matchUnmatched.map((row,index)=>`<article class="lux-ocr-person is-unmatched"><span class="lux-v3-row-avatar">?</span><div><strong>${esc(row.gameName||'Nombre no legible')}</strong><small>${row.confirmed?`${row.kills}/${row.deaths}/${row.assists} · ${row.damage} daño · `:''}${Number(row.confidence||0)}% confianza</small><label>¿QUÉ INTEGRANTE ES?<select onchange="window.luxPlatformV3.assignMatchOcrPlayer(${index},this.value)">${memberOptions(row.suggestionId||'')}</select></label></div><button type="button" onclick="window.luxPlatformV3.ignoreMatchOcrPlayer(${index})">IGNORAR</button></article>`).join('');
-    target.innerHTML=`<div class="lux-ocr-result-head"><span class="lux-v3-status ${result.confidence>=65?'approved':'pending'}">OCR ${Number(result.confidence||0)}%</span><p>Comprueba los datos marcados. Nada se suma hasta que una líder apruebe la captura.</p></div>${matched||'<p class="lux-v3-empty compact">No se reconoció automáticamente a otro integrante. Tu cuenta permanece seleccionada.</p>'}${unmatched?`<h4>NOMBRES POR CONFIRMAR</h4>${unmatched}`:''}`;
+    const facts=[['RESULTADO',statusLabel(result.result)],['MARCADOR',`${Number(result.scoreFor||0)} - ${Number(result.scoreAgainst||0)}`],['MODO',result.mode||'Por confirmar'],['MAPA',result.map||'No visible'],['TIPO',result.gameType||'Partida'],['LADO RIVAL',result.teamAgainst||'No legible']];
+    target.innerHTML=`<div class="lux-ocr-result-head"><span class="lux-v3-status ${result.confidence>=65?'approved':'pending'}">OCR ${Number(result.confidence||0)}%</span><p>Comprueba los datos marcados. Nada se suma hasta que una líder apruebe la captura.</p></div><div class="lux-ocr-facts">${facts.map(([label,value])=>`<span><small>${esc(label)}</small><strong>${esc(value)}</strong></span>`).join('')}</div>${matched||'<p class="lux-v3-empty compact">No se reconoció automáticamente a otro integrante. Tu cuenta permanece seleccionada.</p>'}${unmatched?`<h4>NOMBRES POR CONFIRMAR</h4>${unmatched}`:''}`;
   }
 
   function assignMatchOcrPlayer(index,playerId) {
@@ -228,6 +229,7 @@
       if($('lux-match-result'))$('lux-match-result').value=result.result||$('lux-match-result').value;
       if($('lux-match-score-for'))$('lux-match-score-for').value=Number(result.scoreFor||0);
       if($('lux-match-score-against'))$('lux-match-score-against').value=Number(result.scoreAgainst||0);
+      if($('lux-match-map'))$('lux-match-map').value=result.map||'';
       $('lux-match-details')?.setAttribute('open','');
       renderMatchOcrSummary();renderParticipantInputs();
       toast(`✅ CAPTURA LEÍDA · ${state.matchDetected.size} INTEGRANTE(S) RECONOCIDO(S)${state.matchUnmatched.length?` · ${state.matchUnmatched.length} NOMBRE(S) POR CONFIRMAR`:''}`);
@@ -279,6 +281,7 @@
         <div class="lux-v3-grid three"><label class="lux-v3-field">FECHA Y HORA<input id="lux-match-date" type="datetime-local" value="${nowLocalInput()}"/></label>
           <label class="lux-v3-field">RESULTADO<select id="lux-match-result"><option value="win">VICTORIA</option><option value="loss">DERROTA</option><option value="draw">EMPATE</option></select></label>
           <label class="lux-v3-field">CLAN RIVAL <small>OPCIONAL</small><input id="lux-match-opponent" maxlength="80" placeholder="Nombre del rival"/></label>
+          <label class="lux-v3-field">MAPA <small>AUTOMÁTICO / OPCIONAL</small><input id="lux-match-map" maxlength="40" placeholder="Ej: Bermuda"/></label>
           <label class="lux-v3-field">MARCADOR LUX<input id="lux-match-score-for" type="number" inputmode="numeric" min="0" max="999" value="1"/></label>
           <label class="lux-v3-field">MARCADOR RIVAL<input id="lux-match-score-against" type="number" inputmode="numeric" min="0" max="999" value="0"/></label>
           <label class="lux-v3-field">NOTA <small>OPCIONAL</small><input id="lux-match-notes" maxlength="600" placeholder="Torneo, sala u observación"/></label></div>
@@ -320,7 +323,7 @@
         p_opponent:$('lux-match-opponent').value.trim()||null,p_result:$('lux-match-result').value,
         p_score_for:Number($('lux-match-score-for').value||0),p_score_against:Number($('lux-match-score-against').value||0),
         p_evidence_path:path,p_evidence_sha256:hash,p_evidence_dhash:visualHashes[0],p_visual_hashes:visualHashes,p_participants:participants,
-        p_notes:[state.matchOcrResult?`OCR ${Number(state.matchOcrResult.confidence||0)}%`:null,$('lux-match-notes').value.trim()||null].filter(Boolean).join(' · ')||null,p_season_id:null
+        p_notes:[state.matchOcrResult?`OCR ${Number(state.matchOcrResult.confidence||0)}%`:null,$('lux-match-map')?.value.trim()?`Mapa: ${$('lux-match-map').value.trim()}`:null,$('lux-match-notes').value.trim()||null].filter(Boolean).join(' · ')||null,p_season_id:null
       });
       toast('✅ PARTIDO ENVIADO · UNA SOLA APROBACIÓN ACTUALIZARÁ A TODO EL EQUIPO');
       state.selectedPlayers=new Set([appState().user.id]);state.matchDetected.clear();state.matchUnmatched=[];state.matchOcrResult=null;

@@ -164,8 +164,8 @@
     // mitad completa mezclaba iconos y estadisticas con el nombre del jugador.
     const table = { y:.42, height:.35 }, rowStarts = [.437,.514,.591,.668];
     const columns = [
-      { side:'left', names:{ x:.128, width:.155 }, stats:{ x:.282, y:table.y, width:.112, height:table.height } },
-      { side:'right', names:{ x:.579, width:.153 }, stats:{ x:.731, y:table.y, width:.112, height:table.height } }
+      { side:'left', names:{ x:.128, width:.155 }, stats:{ x:.268, y:table.y, width:.116, height:table.height } },
+      { side:'right', names:{ x:.579, width:.153 }, stats:{ x:.719, y:table.y, width:.116, height:table.height } }
     ];
     return {
       full,
@@ -175,10 +175,24 @@
         side:column.side,kind:'name',rowIndex,variant,
         canvas:prepareRegion(image,{ x:.132 + (column.side === 'right' ? .451 : 0),y,width:.15,height:.041 },1100,variant)
       })))),
-      teamStats:columns.flatMap(column => ['color','gray'].map(variant => ({
-        side:column.side,kind:'stats',variant,
-        canvas:prepareRegion(image,column.stats,900,variant)
-      }))),
+      teamStats:columns.flatMap(column => {
+        const offset=column.side==='right'?.45:0;
+        return [
+          { side:column.side,kind:'stats',variant:'column',canvas:prepareRegion(image,column.stats,900,'gray') },
+          ...rowStarts.flatMap((y,rowIndex) => ['color','gray','brightText'].flatMap(variant => [
+            { side:column.side,kind:'stats',part:'kda',rowIndex,variant,
+              canvas:prepareRegion(image,{ x:.278+offset,y:y+.001,width:.066,height:.049 },850,variant) },
+            { side:column.side,kind:'stats',part:'damage',rowIndex,variant,
+              canvas:prepareRegion(image,{ x:.347+offset,y:y+.001,width:.044,height:.049 },650,variant) }
+          ]))
+        ];
+      }),
+      teamLabels:[
+        ...['color','gray','brightText'].map(variant => ({ side:'left',variant,
+          canvas:prepareRegion(image,{ x:.145,y:.31,width:.21,height:.075 },800,variant) })),
+        ...['color','gray','brightText'].map(variant => ({ side:'right',variant,
+          canvas:prepareRegion(image,{ x:.64,y:.31,width:.22,height:.075 },800,variant) }))
+      ],
       scoreDigits:[
         { side:'left', canvas:prepareRegion(image, { x:.407, y:.317, width:.042, height:.066 }, 500, 'color') },
         { side:'left', canvas:prepareRegion(image, { x:.407, y:.317, width:.042, height:.066 }, 500, 'gray') },
@@ -257,6 +271,19 @@
       .replace(/[^\p{L}\p{N}_\-\s]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
   }
 
+  function partialStats(text,part) {
+    const normalized=String(text||'').replace(/[|Il]/g,'1').replace(/[Oo]/g,'0');
+    if(part==='kda'){
+      const match=normalized.match(/(\d{1,2})\s*[\/:]\s*(\d{1,2})\s*[\/:]\s*(\d{1,2})/);
+      if(match)return {kills:safeNumber(match[1],99),deaths:safeNumber(match[2],99),assists:safeNumber(match[3],99),hasKda:true};
+    }
+    if(part==='damage'){
+      const values=normalized.match(/\d{3,6}/g)?.map(value=>safeNumber(value))||[];
+      if(values.length)return {damage:values.sort((a,b)=>b-a)[0],hasDamage:true};
+    }
+    return {};
+  }
+
   function spatialLines(words, canvasWidth, canvasHeight, region, side, targetHeight) {
     const filtered = words.filter(word => {
       const x=(word.bbox.x0+word.bbox.x1)/2/canvasWidth,y=(word.bbox.y0+word.bbox.y1)/2/canvasHeight;
@@ -301,6 +328,14 @@
         group.lines.push(line);
       });
 
+    const partialByRow=new Map();
+    statLines.filter(line=>Number.isInteger(line.rowIndex)&&line.part).forEach(line=>{
+      const partial=partialStats(line.text,line.part),current=partialByRow.get(line.rowIndex)||{};
+      const score=Number(line.confidence||0);
+      if(partial.hasKda&&score>Number(current.kdaConfidence||-1))Object.assign(current,partial,{kdaConfidence:score});
+      if(partial.hasDamage&&score>Number(current.damageConfidence||-1))Object.assign(current,partial,{damageConfidence:score});
+      partialByRow.set(line.rowIndex,current);
+    });
     const usableStats = statLines.map(line => ({ ...line, stats:lineStats(line.text) })).filter(line => line.stats.confirmed);
     const mapped = groups.map((group,rowIndex) => {
       const evaluated=group.lines.map(line => {
@@ -319,7 +354,11 @@
       const name = options[0];
       const nearestStat = usableStats.map(line => ({ ...line, distance:Math.abs(line.y - group.y) }))
         .filter(line => line.distance <= height * .105).sort((a,b) => a.distance - b.distance || b.confidence - a.confidence)[0];
-      const stats = nearestStat?.stats || { kills:0,deaths:0,assists:0,damage:0,confirmed:false };
+      const partial=partialByRow.get(group.rowIndex)||{};
+      const stats = nearestStat?.stats || {
+        kills:partial.kills||0,deaths:partial.deaths||0,assists:partial.assists||0,damage:partial.damage||0,
+        confirmed:Boolean(partial.hasKda&&partial.hasDamage)
+      };
       return {
         text:`${name.gameName}${nearestStat ? ` ${nearestStat.text}` : ''}`,
         gameName:name.gameName,
@@ -383,14 +422,33 @@
     return match ? { scoreFor:safeNumber(match[1],999), scoreAgainst:safeNumber(match[2],999), confidence:82 } : null;
   }
 
+  function detectedMapName(text) {
+    const upper=String(text||'').toLocaleUpperCase('es').normalize('NFKD').replace(/\p{M}/gu,'');
+    return ['BERMUDA','PURGATORIO','KALAHARI','ALPES','NEXTERA','SOLARA']
+      .find(name=>new RegExp(`\\b${name}\\b`).test(upper))||'';
+  }
+
+  function cleanTeamLabel(text) {
+    const cleaned=String(text||'').replace(/[^\p{L}\s]/gu,' ').replace(/\s+/g,' ').trim();
+    return cleaned.length>=4&&cleaned.length<=32?cleaned.toLocaleUpperCase('es'):'';
+  }
+
   function parseResult(lines, rawText, context) {
     const upper = String(rawText || '').toLocaleUpperCase('es');
     const result = /VICTORIA|BOOYAH/.test(upper) ? 'win' : /DERROTA|DEFEAT/.test(upper) ? 'loss' : /EMPATE|DRAW/.test(upper) ? 'draw' : (context?.result || 'win');
     const score = lines.map(line => detectScore(line.text)).find(Boolean);
-    const detectedMode = ['4v4','3v3','2v2','1v1'].find(mode => new RegExp(mode.replace('v','\\s*[vVxX]\\s*')).test(rawText));
+    const explicitMode = ['4v4','3v3','2v2','1v1'].find(mode => new RegExp(mode.replace('v','\\s*[vVxX]\\s*')).test(rawText));
     const candidates = candidateDirectory(context), matchedByPlayer = new Map(), unmatched = [];
     const selectedTeam = selectClanSide(lines, candidates, context?.currentPlayerId);
     const playerLines = selectedTeam.lines.length ? selectedTeam.lines : lines;
+    const sidePlayers=selectedTeam.side==='unknown'?[]:lines.filter(line=>line.kind==='player'&&line.side===selectedTeam.side);
+    const inferredCount=Math.max(...sidePlayers.map(line=>Number(line.rowIndex)+1).filter(Number.isFinite),0);
+    const duelMode=/DUE[L1][DO]?\s+DE\s+ESCUADRAS/i.test(rawText);
+    const detectedMode=explicitMode||(duelMode&&inferredCount>=1&&inferredCount<=4?`${inferredCount}v${inferredCount}`:'');
+    const labels=lines.filter(line=>line.kind==='team-label');
+    const ownLabel=cleanTeamLabel(labels.find(line=>line.side===selectedTeam.side)?.text||'');
+    const rivalSide=selectedTeam.side==='left'?'right':selectedTeam.side==='right'?'left':'';
+    const rivalLabel=cleanTeamLabel(labels.find(line=>line.side===rivalSide)?.text||'');
 
     playerLines.forEach((line, index) => {
       const stats = line.stats || lineStats(line.text), gameName = line.gameName || cleanPlayerText(line.text);
@@ -449,6 +507,8 @@
       rawText:String(rawText || '').slice(0, 8000), confidence:Math.round(lines.reduce((sum, line) => sum + line.confidence, 0) / Math.max(1, lines.length)),
       mode:detectedMode || context?.mode || '4v4', result,
       scoreFor, scoreAgainst,
+      map:detectedMapName(rawText),gameType:duelMode?'DUELO DE ESCUADRAS':'',
+      teamFor:ownLabel,teamAgainst:rivalLabel,
       scoreConfidence:score?.confidence || 0, teamSide:selectedTeam.side,
       matched:[...matchedByPlayer.values()].slice(0, 4).map(({ ocrConfidence, ...entry }) => entry),
       unmatched:[...uniqueUnmatched.values()].slice(0, 4)
@@ -468,7 +528,7 @@
       const result = await worker.recognize(images.full, {}, { blocks:true, text:true });
       const fullWords = collectWords(result.data), fullLines = clusterLines(fullWords, images.full.height);
       const candidates = candidateDirectory(context), nameLines = { left:[],right:[] }, statLines = { left:[],right:[] };
-      const scoreLines = [], scoreDigits = { left:[], right:[] };
+      const scoreLines = [], labelLines=[], scoreDigits = { left:[], right:[] };
       // Una lectura del lienzo completo conserva la alineacion vertical y
       // rescata nombres decorados que se pierden al recortar demasiado.
       ['left','right'].forEach(side => {
@@ -492,14 +552,26 @@
       for (let index = 0; index < images.teamStats.length; index += 1) {
         const region=images.teamStats[index];
         onProgress(76 + index * 4,`Leyendo estadisticas del equipo ${region.side === 'left' ? 'izquierdo' : 'derecho'}`);
-        await worker.setParameters?.({ preserve_interword_spaces:'1',tessedit_pageseg_mode:'6',tessedit_char_whitelist:'0123456789/:' });
+        await worker.setParameters?.({ preserve_interword_spaces:'1',tessedit_pageseg_mode:Number.isInteger(region.rowIndex)?'7':'6',tessedit_char_whitelist:'0123456789/:' });
         const statResult=await worker.recognize(region.canvas,{}, {blocks:true,text:true});
-        statLines[region.side].push(...clusterLines(collectWords(statResult.data),region.canvas.height,region.side)
-          .map(line=>({ ...line,y:line.y/region.canvas.height*1400,variant:region.variant })));
+        let readLines=clusterLines(collectWords(statResult.data),region.canvas.height,region.side);
+        if(!readLines.length&&String(statResult.data?.text||'').trim())readLines=[{
+          text:String(statResult.data.text).trim(),confidence:Number(statResult.data.confidence||45),y:region.canvas.height/2,side:region.side
+        }];
+        statLines[region.side].push(...readLines.map(line=>({
+          ...line,y:Number.isInteger(region.rowIndex)?1400*(region.rowIndex+.5)/4:line.y/region.canvas.height*1400,
+          rowIndex:region.rowIndex,variant:region.variant,part:region.part
+        })));
       }
       const playerLines = ['left','right'].flatMap(side => {
         return buildPlayerLines(nameLines[side],statLines[side],side,candidates,1400);
       });
+      await worker.setParameters?.({ preserve_interword_spaces:'1',tessedit_pageseg_mode:'7',tessedit_char_whitelist:'' });
+      for(const region of images.teamLabels||[]){
+        const labelResult=await worker.recognize(region.canvas,{}, {blocks:true,text:true});
+        const label=cleanTeamLabel(labelResult.data?.text);
+        if(label)labelLines.push({text:label,confidence:Number(labelResult.data?.confidence||50),y:0,side:region.side,kind:'team-label'});
+      }
       await worker.setParameters?.({ tessedit_pageseg_mode:'10', tessedit_char_whitelist:'0123456789' });
       for (let index = 0; index < (images.scoreDigits || []).length; index += 1) {
         const digitRegion = images.scoreDigits[index];
@@ -512,8 +584,9 @@
         .sort((a,b)=>b.count-a.count)[0]?.value;
       const leftScore=preferredDigit(scoreDigits.left),rightScore=preferredDigit(scoreDigits.right);
       if (leftScore && rightScore) scoreLines.push({ text:`${leftScore} VS ${rightScore}`, confidence:90, y:0, side:'unknown' });
-      const lines = playerLines.length ? [...fullLines, ...playerLines, ...scoreLines] : [...fullLines, ...scoreLines];
-      const rawText = [result.data?.text, ...playerLines.map(line => line.text), ...scoreLines.map(line => line.text)].filter(Boolean).join('\n');
+      const bestLabels=['left','right'].map(side=>labelLines.filter(line=>line.side===side).sort((a,b)=>b.confidence-a.confidence)[0]).filter(Boolean);
+      const lines = playerLines.length ? [...fullLines,...playerLines,...bestLabels,...scoreLines] : [...fullLines,...bestLabels,...scoreLines];
+      const rawText = [result.data?.text,...playerLines.map(line=>line.text),...bestLabels.map(line=>line.text),...scoreLines.map(line=>line.text)].filter(Boolean).join('\n');
       onProgress(94, 'Comparando nombres con los integrantes');
       const parsed = parseResult(lines, rawText, context);
       onProgress(100, 'Borrador listo para revisar');

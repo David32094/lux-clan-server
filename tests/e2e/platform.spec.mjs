@@ -284,6 +284,20 @@ test('el lector corrige caracteres decorados usando un integrante unico', async 
   expect(parsed.unmatched).toEqual([]);
 });
 
+test('el lector completa mapa tipo equipos marcador y estadisticas visibles', async ({ page }) => {
+  await mockSupabase(page);
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => typeof window.luxMatchOCR?.parseResult)).toBe('function');
+  const parsed=await page.evaluate(() => window.luxMatchOCR.parseResult([
+    {text:'EDUxNIKO 10/6/8 4211',gameName:'EDUxNIKO',stats:{kills:10,deaths:6,assists:8,damage:4211,confirmed:true},confidence:96,side:'left',kind:'player',rowIndex:0},
+    {text:'SILENCIADORES',confidence:90,side:'left',kind:'team-label'},
+    {text:'AULLADORES',confidence:90,side:'right',kind:'team-label'},
+    {text:'7 VS 6',confidence:94,side:'unknown'}
+  ],'DUELO DE ESCUADRAS\nBERMUDA\nVICTORIA\n7 VS 6',{currentPlayerId:'edu',members:[{id:'edu',display_name:'EDUxNIKO'}],aliases:[],mode:'4v4',result:'win'}));
+  expect(parsed).toMatchObject({map:'BERMUDA',gameType:'DUELO DE ESCUADRAS',teamFor:'SILENCIADORES',teamAgainst:'AULLADORES',scoreFor:7,scoreAgainst:6});
+  expect(parsed.matched[0]).toMatchObject({kills:10,deaths:6,assists:8,damage:4211,confirmed:true});
+});
+
 test('el ranking conserva la misma cabecera de integrante y administrador', async ({ page }) => {
   await mockSupabase(page, { role:'owner' });
   await page.goto(oauthUrl());
