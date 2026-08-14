@@ -382,6 +382,8 @@ test('el owner ve el enlace general y los tres modos de acceso', async ({ page }
   await expect(page.locator('#lux-access-mode')).toHaveValue('open');
   await expect(page.locator('#lux-access-mode option')).toHaveCount(3);
   await expect(page.locator('#lux-access-control code')).toContainText('http://127.0.0.1');
+  const operationsOverflow = await page.locator('#lux-v3-admin-operations').evaluate(panel => panel.scrollWidth - panel.clientWidth);
+  expect(operationsOverflow).toBeLessThanOrEqual(2);
 });
 
 test('placas y banners cargan sin depender de archivos incrustados', async ({ page }) => {
@@ -394,6 +396,11 @@ test('placas y banners cargan sin depender de archivos incrustados', async ({ pa
   await expect(page.locator('#c-integ')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.querySelector('#c-integ')?.width || 0)).toBeGreaterThan(500);
   await expect.poll(() => page.locator('#btn-dl-integ').isEnabled()).toBe(true);
+  const memberCanvasRatio = await page.locator('#c-integ').evaluate(canvas => {
+    const rect = canvas.getBoundingClientRect();
+    return { rendered:rect.width / rect.height, intrinsic:canvas.width / canvas.height };
+  });
+  expect(Math.abs(memberCanvasRatio.rendered - memberCanvasRatio.intrinsic)).toBeLessThan(0.02);
   await page.locator('#t-nombre-integ').fill('FX 07');
   const numericNameLayout = await page.evaluate(() => ({
     font:getFontStrInteg('nombre', 62),

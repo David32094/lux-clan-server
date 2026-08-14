@@ -117,6 +117,31 @@ input:focus,select:focus,textarea:focus{border-color:var(--fluxo-neon)!important
 .lux-access-grid button{justify-self:start}
 .lux-access-help{color:#aaa4ad!important;font-size:.72rem!important;line-height:1.7!important}
 
+/* Las operaciones privadas deben encogerse con el viewport. Los controles
+   nativos y los textos largos no pueden imponer el ancho de su contenido. */
+#lux-v3-admin-operations,
+#lux-v3-admin-operations>*,
+#lux-v3-admin-operations .lux-ops-grid,
+#lux-v3-admin-operations .lux-ops-card,
+#lux-access-control,
+#lux-access-control>*,
+#lux-access-control .lux-access-grid,
+#lux-access-control .lux-access-grid>*{min-width:0;max-width:100%}
+#lux-access-control select,
+#lux-access-control input,
+#lux-access-control code,
+#lux-v3-admin-operations select,
+#lux-v3-admin-operations input{width:100%;max-width:100%;box-sizing:border-box}
+#lux-v3-admin-operations .lux-v3-row>div{min-width:0}
+#lux-v3-admin-operations .lux-audit-row code{display:block;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+
+/* En escritorio ancho caben las doce herramientas sin esconder las primeras. */
+@media(min-width:1180px){
+  .lux-admin-tabs{grid-template-columns:repeat(var(--lux-admin-tab-count,12),minmax(0,1fr));gap:5px}
+  .lux-admin-tabs button{min-width:0;padding-inline:3px}
+  .lux-admin-tabs button>strong{font-size:.78rem;letter-spacing:.35px}
+}
+
 @media(max-width:680px){.lux-ocr-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
   .lux-profile-key-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
   .lux-profile-key-stats article{padding:11px 5px}
