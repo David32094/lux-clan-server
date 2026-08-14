@@ -21,6 +21,8 @@ const files = [
   'prototipo-supabase.js',
   'lux-simple-ui.css',
   'fluxo-theme.css',
+  'fluxo-effects.css',
+  'fluxo-effects.js',
   'lux-match-ocr.js',
   'lux-platform-v3.js',
   'lux-platform-v3.css',

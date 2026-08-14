@@ -526,6 +526,7 @@
     clearTimeout(navigationBusyTimer);
     document.body.classList.add('lux-navigation-busy');
     document.documentElement.dataset.luxView = label;
+    document.dispatchEvent(new CustomEvent('fluxo:navigation-start', { detail:{ label, token } }));
     navigationBusyTimer = setTimeout(() => {
       if (token === state.navigationSerial) document.body.classList.remove('lux-navigation-busy');
     }, 8000);
@@ -539,6 +540,7 @@
       if (token !== state.navigationSerial) return;
       document.body.classList.remove('lux-navigation-busy');
       animateView(target);
+      document.dispatchEvent(new CustomEvent('fluxo:navigation-end', { detail:{ token } }));
       const activeTabs = document.body.classList.contains('lux-hub-admin')
         ? document.querySelector('#hub-admin .lux-admin-tabs')
         : document.body.classList.contains('lux-hub-member')
@@ -1412,6 +1414,7 @@
     try {
       await rpc('review_victory', { p_victory_id:id, p_status:status, p_reason:reason });
       toast(status === 'approved' ? '✅ VICTORIA APROBADA' : '↩️ VICTORIA RECHAZADA');
+      if (status === 'approved') document.dispatchEvent(new CustomEvent('fluxo:victory-approved', { detail:{ count:1 } }));
       await Promise.all([renderAdmin(), renderPublic()]);
     } catch (error) { toast(`⚠️ ${errorMessage(error).toUpperCase()}`); }
   }

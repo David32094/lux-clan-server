@@ -221,6 +221,7 @@
     const progress=$('lux-match-ocr-progress');if(!progress)return;
     progress.hidden=false;progress.style.setProperty('--match-ocr-progress',`${Math.max(4,Math.min(100,Number(percent)||0))}%`);
     const label=progress.querySelector('span');if(label)label.textContent=message;
+    document.dispatchEvent(new CustomEvent('fluxo:scan-progress',{detail:{percent:Number(percent)||0,message}}));
   }
 
   function previewMatchFile() {
@@ -231,6 +232,7 @@
     state.matchPreviewUrl=URL.createObjectURL(file);
     preview.innerHTML=`<img src="${esc(state.matchPreviewUrl)}" alt="Captura que se enviará como evidencia"/><div><strong>CAPTURA LISTA</strong><small>Ya puedes enviarla. La líder recibirá la imagen y un resumen preparado automáticamente.</small></div>`;
     preview.hidden=false;
+    document.dispatchEvent(new CustomEvent('fluxo:scan-preview'));
     const progress=$('lux-match-ocr-progress');if(progress)progress.hidden=true;
   }
 
@@ -435,7 +437,7 @@
 
   async function reviewMatch(id,status){
     const reason=status==='rejected'?(window.prompt('Motivo del rechazo:')||null):null;
-    try{if(status==='approved')await prepareMatchForApproval(id);await core().rpc('review_match',{p_match_id:id,p_status:status,p_reason:reason});toast(status==='approved'?'✅ PARTIDO APROBADO PARA TODO EL EQUIPO':'↩️ PARTIDO RECHAZADO');await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
+    try{if(status==='approved')await prepareMatchForApproval(id);await core().rpc('review_match',{p_match_id:id,p_status:status,p_reason:reason});toast(status==='approved'?'✅ PARTIDO APROBADO PARA TODO EL EQUIPO':'↩️ PARTIDO RECHAZADO');if(status==='approved')document.dispatchEvent(new CustomEvent('fluxo:victory-approved',{detail:{count:1}}));await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);}
   }
 
   function toggleReviewMatch(id,checked){if(checked)state.selectedMatches.add(id);else state.selectedMatches.delete(id);const button=$('lux-approve-selected');if(button){button.disabled=!state.selectedMatches.size;button.textContent=`APROBAR SELECCIONADAS (${state.selectedMatches.size})`;}}
@@ -450,7 +452,7 @@
     const ids=[...state.selectedMatches].filter(id=>state.pendingMatches.has(id));if(!ids.length){toast('⚠️ SELECCIONA AL MENOS UN PARTIDO');return;}
     if(ids.some(id=>unresolvedMatchPlayers(state.pendingMatches.get(id)).length)){toast('⚠️ CONFIRMA LOS NOMBRES DUDOSOS ANTES DE APROBAR EN LOTE');return;}
     const button=$('lux-approve-selected');if(button){button.disabled=true;button.textContent='APROBANDO…';}
-    try{const count=await core().rpc('staff_bulk_review_matches',{p_match_ids:ids,p_status:'approved',p_reason:null});state.selectedMatches.clear();toast(`✅ ${Number(count||ids.length)} PARTIDO(S) APROBADO(S)`);await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}
+    try{const count=await core().rpc('staff_bulk_review_matches',{p_match_ids:ids,p_status:'approved',p_reason:null});state.selectedMatches.clear();toast(`✅ ${Number(count||ids.length)} PARTIDO(S) APROBADO(S)`);document.dispatchEvent(new CustomEvent('fluxo:victory-approved',{detail:{count:Number(count||ids.length)}}));await Promise.all([renderAdminMatches(),core().renderAdmin(),core().renderPublic()]);}
     catch(error){toast(`⚠️ ${errorText(error).toUpperCase()}`);if(button){button.disabled=false;button.textContent=`APROBAR SELECCIONADAS (${ids.length})`;}}
   }
 
@@ -757,7 +759,7 @@
       if($('lux-public-members'))$('lux-public-members').textContent=rows.length;
       if($('lux-public-wins'))$('lux-public-wins').textContent=rows.reduce((total,row)=>total+Number(row.victories_4v4||0),0);
       if($('lux-public-total'))$('lux-public-total').textContent=rows.reduce((total,row)=>total+Number(row.victories_total||0),0);
-      list.innerHTML=rows.length?rows.map((row,index)=>`<button type="button" class="lux-public-row lux-period-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index+1}</i>${avatar(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingStatsLine(row)}</small></div></button>`).join(''):'<p class="hub-empty">No hay resultados aprobados en este periodo.</p>';
+      list.innerHTML=rows.length?rows.map((row,index)=>`<button type="button" class="lux-public-row lux-period-row" data-fluxo-kd="${Number(row.kd||0)}" data-fluxo-damage="${Number(row.damage||0)}" data-fluxo-streak="${Number(row.current_streak||0)}" data-fluxo-matches="${Number(row.matches_played||0)}" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index+1}</i>${avatar(row)}<div><strong>${esc(row.display_name)}</strong><small>${rankingStatsLine(row)}</small></div></button>`).join(''):'<p class="hub-empty">No hay resultados aprobados en este periodo.</p>';
     }catch(_){if(targetId==='lux-public-ranking'){await core().renderPublic();await ensureRankingFilters();}else list.innerHTML='<p class="hub-empty">No se pudo cargar el ranking. Intenta de nuevo.</p>';}
     finally{list.classList.remove('lux-list-refreshing');list.removeAttribute('aria-busy');}
   }
