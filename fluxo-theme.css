@@ -84,10 +84,19 @@ input[type=checkbox],input[type=radio],.lux-participant-toggle,.lux-review-toolb
 .lux-admin-overview-slot .hub-admin-head,#hub-admin .hub-admin-head.lux-admin-overview{padding:clamp(24px,4vw,38px)!important}
 .lux-admin-overview-slot{overflow:visible!important}.lux-admin-overview-slot .hub-kicker,#hub-admin .hub-admin-head.lux-admin-overview .hub-kicker{display:block;padding-left:2px}.lux-context-ranking-panel>.lux-v3-card{max-width:1160px!important}
 
+/* Banners reutiliza la misma geometria de la cabecera administrativa. El
+   ancho y el relleno coinciden exactamente con .hub-page para que al cambiar
+   de pestaña no exista desplazamiento vertical ni horizontal. */
+#hub-editor-nav,#hub-editor-nav *,#hub-editor-nav *::before,#hub-editor-nav *::after{box-sizing:border-box}
+.lux-editor-context-tabs-wrap{width:min(100%,1160px)!important;max-width:1160px!important;padding:28px 18px 0!important}
+#hub-editor-nav .lux-context-tabs button{padding:7px 6px!important;font:revert!important}
+@media(min-width:1180px){#hub-editor-nav .lux-context-tabs button{padding-inline:3px!important}}
+
 @media(max-width:900px){
  body>header{height:auto!important;min-height:58px!important;padding:8px 10px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
  .hdr-brand{justify-content:flex-start!important;flex-wrap:nowrap!important;min-width:0}.hdr-brand::before{width:34px;height:34px;flex-basis:34px}.hdr-author{display:none}.nav-tabs{width:auto!important;display:flex!important;gap:5px!important}.tab-btn{width:auto!important;min-height:38px!important;padding:6px 9px!important}
  #hub-member .hub-nav,#hub-admin .hub-nav,#lux-public-screen .hub-nav,#hub-editor-nav .lux-editor-context-bar{min-height:58px!important;padding:8px 10px!important}.lux-member-tabs,.lux-admin-tabs,.lux-context-tabs{margin-top:-14px!important}
+ .lux-editor-context-tabs-wrap{padding:24px 12px 0!important}
  .hub-home-content{padding-top:28px!important}.fluxo-home-logo{width:88px!important;height:88px!important;margin-bottom:14px!important}.hub-home h1{font-size:clamp(4.2rem,19vw,6rem)!important}
  #hub-member .hub-page,#hub-admin .hub-page,#lux-public-screen .hub-page{padding:24px 12px 82px!important}
 }
@@ -96,6 +105,7 @@ input[type=checkbox],input[type=radio],.lux-participant-toggle,.lux-review-toolb
  .hub-nav>strong,.lux-editor-context-bar>strong{font-size:.88rem!important;letter-spacing:.8px!important}.hub-nav button,.lux-editor-context-bar button,.lux-nav-actions button{padding:7px!important;font-size:.74rem!important}
  .lux-admin-overview-slot .hub-admin-head,#hub-admin .hub-admin-head.lux-admin-overview{padding:22px 18px!important}
 }
+@media(max-width:760px){#hub-editor-nav .lux-context-tabs button{padding:5px 3px!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
 
 /* Residuos concretos de componentes antiguos del hub. */

@@ -162,6 +162,46 @@ test('integrante y administrador usan una cabecera de pestañas con la misma alt
   expect(Math.abs(member.height - admin.height)).toBeLessThanOrEqual(1);
 });
 
+test('Banners conserva la cabecera administrativa en las mismas coordenadas', async ({ page }) => {
+  await mockSupabase(page, { role:'owner' });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => window.luxSupabase?._core?.state?.isOwner)).toBe(true);
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await expect(page.locator('#lux-admin-tabs')).toBeVisible();
+
+  const geometry = selector => page.locator(selector).evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return { x:rect.x, y:rect.y, width:rect.width, height:rect.height, bottom:rect.bottom };
+  });
+  const before = {
+    nav:await geometry('#hub-admin .hub-nav'),
+    tabs:await geometry('#lux-admin-tabs'),
+    sticky:await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--lux-sticky-nav-height'))
+  };
+
+  await page.evaluate(() => window.luxSupabase.navigateAdmin('editor'));
+  await expect(page.locator('body')).toHaveClass(/lux-hub-editor/);
+  await expect(page.locator('#hub-editor-nav .lux-editor-context-bar')).toBeVisible();
+  await expect(page.locator('#hub-editor-nav .lux-context-tabs')).toBeVisible();
+  await expect(page.locator('body')).not.toHaveClass(/lux-navigation-busy/);
+
+  const after = {
+    nav:await geometry('#hub-editor-nav .lux-editor-context-bar'),
+    tabs:await geometry('#hub-editor-nav .lux-context-tabs'),
+    sticky:await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--lux-sticky-nav-height'))
+  };
+  for (const part of ['nav','tabs']) {
+    for (const dimension of ['x','y','width','height','bottom']) {
+      expect(Math.abs(before[part][dimension] - after[part][dimension])).toBeLessThanOrEqual(0.5);
+    }
+  }
+  expect(after.sticky).toBe(before.sticky);
+  expect(await page.evaluate(() => ({
+    navs:[...document.querySelectorAll('#hub-admin .hub-nav,#hub-editor-nav .lux-editor-context-bar')].filter(node => node.getClientRects().length).length,
+    tabs:[...document.querySelectorAll('#lux-admin-tabs,#hub-editor-nav .lux-context-tabs')].filter(node => node.getClientRects().length).length
+  }))).toEqual({ navs:1, tabs:1 });
+});
+
 test('victorias y partidos se envían a RPC segura', async ({ page }) => {
   let secureRpc = false;
   await mockSupabase(page);

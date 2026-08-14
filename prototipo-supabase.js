@@ -1684,8 +1684,10 @@
       }
       window.luxLeaderDemo?.setMode(leader ? 'leader' : 'member');
       window.switchTab?.('integrantes');
-      window.luxHub.setScreen('editor');
+      // Construye la cabecera completa mientras sigue oculta. Así Banners no
+      // llega a mostrar ni un fotograma de la barra antigua antes del editor.
       mountEditorNavigation(state.editorBack);
+      window.luxHub.setScreen('editor');
       scrollTopNow();
     } finally {
       endNavigation(navigationToken, document.querySelector('.tab-content.active') || document.querySelector('.tab-content:not([hidden])'));
