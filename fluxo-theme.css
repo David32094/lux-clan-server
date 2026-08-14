@@ -141,3 +141,106 @@ body.lux-hub-editor button:focus-visible,body.lux-hub-editor input:focus-visible
 .lux-owner-account-summary b{display:block;color:var(--fluxo-neon);font-size:clamp(1.35rem,3vw,2rem)}
 .lux-owner-account-summary small{color:#bec8b7;font-size:.68rem;letter-spacing:.08em}
 @media(max-width:700px){.lux-owner-account-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Directorio compartido de integrantes. La misma reticula, proporciones y
+   ritmo visual se utilizan en Mi cuenta y Administracion. */
+.lux-roster-shell{
+ width:100%!important;max-width:none!important;margin:0!important;padding:clamp(20px,3vw,30px)!important;
+ border:1px solid var(--fluxo-line)!important;border-radius:22px!important;
+ background:radial-gradient(circle at 92% 0,#a8ff0013,transparent 28%),linear-gradient(145deg,#101610,#080c09)!important;
+ box-shadow:0 22px 65px #0008!important;box-sizing:border-box!important;overflow:hidden
+}
+.lux-roster-shell:hover{border-color:var(--fluxo-line)!important;background:radial-gradient(circle at 92% 0,#a8ff0013,transparent 28%),linear-gradient(145deg,#101610,#080c09)!important}
+.lux-roster-shell>*{width:100%;box-sizing:border-box}
+.lux-roster-header{
+ display:grid!important;grid-template-columns:minmax(0,1fr) 148px!important;align-items:end!important;
+ gap:clamp(18px,3vw,34px)!important;margin:0 0 22px!important;padding:0 0 22px!important;
+ border-bottom:1px solid #b8ff0025!important
+}
+.lux-roster-header>div{min-width:0}.lux-roster-header .hub-kicker{display:block;margin:0 0 7px;font-size:.76rem;letter-spacing:2.2px}
+.lux-roster-header h2,.lux-roster-header h3{
+ margin:0!important;color:#fff!important;font:clamp(2.5rem,5vw,4.25rem)/.9 'Bebas Neue',Impact,sans-serif!important;
+ letter-spacing:1.8px!important;text-wrap:balance
+}
+.lux-roster-header p{max-width:650px!important;margin:11px 0 0!important;color:var(--fluxo-muted)!important;font-size:.83rem!important;line-height:1.55!important}
+.lux-roster-header>aside{
+ display:grid;place-items:center;align-content:center;min-height:92px;padding:13px 10px;border:1px solid var(--fluxo-line);
+ border-radius:16px;background:#050806b8;text-align:center;box-shadow:inset 0 0 30px #a8ff0008
+}
+.lux-roster-header>aside b{color:var(--fluxo-neon);font:2.5rem/1 'Bebas Neue',Impact,sans-serif;text-shadow:0 0 18px #a8ff0055}
+.lux-roster-header>aside span{margin-top:6px;color:#b9c3b4;font:600 .58rem/1.2 'Segoe UI',sans-serif;letter-spacing:1.35px}
+.lux-roster-search,.hub-directory-search.lux-roster-search{
+ position:relative!important;display:block!important;margin:0 0 18px!important;padding:0!important;border:0!important;background:transparent!important;color:inherit!important
+}
+.lux-roster-search>span{position:absolute;z-index:1;left:16px;top:50%;translate:0 -50%;color:var(--fluxo-neon);font:1.65rem/1 'Bebas Neue',Impact,sans-serif;pointer-events:none}
+.lux-roster-search input,.hub-directory-search.lux-roster-search input{
+ width:100%!important;height:52px!important;margin:0!important;padding:10px 48px!important;border:1px solid #b8ff0038!important;
+ border-radius:14px!important;background:#040705!important;color:#f7fff1!important;font:500 16px/1.2 'Segoe UI',sans-serif!important;
+ box-shadow:inset 0 0 0 1px #000,0 8px 22px #0004!important
+}
+.lux-roster-search input::placeholder{color:#778173}.lux-roster-search input:focus{border-color:var(--fluxo-neon)!important;box-shadow:0 0 0 3px #a8ff0014,0 0 24px #a8ff0010!important;outline:none!important}
+.lux-member-directory-list,.hub-member-directory-list{
+ display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:stretch!important;gap:14px!important
+}
+.lux-roster-card{
+ position:relative;isolation:isolate;min-width:0;min-height:252px;margin:0!important;padding:0!important;
+ border:1px solid #b8ff002c!important;border-radius:18px!important;overflow:hidden;
+ background:linear-gradient(155deg,#151c14 0%,#0a0f0b 62%,#060907 100%)!important;color:#f8fbf5!important;
+ box-shadow:0 15px 36px #0008,inset 0 1px 0 #ffffff08!important;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease!important
+}
+.lux-roster-card::before{content:'';position:absolute;z-index:-1;inset:0;background:radial-gradient(circle at 50% 20%,#a8ff0015,transparent 34%),linear-gradient(115deg,transparent 46%,#ffffff04 47%,transparent 49%);pointer-events:none}
+.lux-roster-card:hover,.lux-roster-card:focus-within{border-color:#b8ff0082!important;background:linear-gradient(155deg,#192318,#0c120d 62%,#070b08)!important;box-shadow:0 18px 42px #0009,0 0 28px #a8ff001b,inset 0 1px 0 #ffffff0b!important;transform:translateY(-3px)}
+.lux-roster-card-button,.lux-roster-card-main{
+ appearance:none;width:100%;min-height:252px;padding:18px 18px 16px;border:0!important;background:transparent!important;color:inherit;
+ font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;align-items:center;box-sizing:border-box
+}
+.lux-roster-card-button:focus-visible,.lux-roster-card-main:focus-visible,.lux-roster-action:focus-visible{outline:2px solid var(--fluxo-neon)!important;outline-offset:-4px}
+.lux-roster-rank{
+ position:absolute;top:15px;left:16px;display:grid;place-items:center;min-width:38px;height:28px;padding:0 9px;
+ border:1px solid #b8ff0040;border-radius:999px;background:#081008;color:var(--fluxo-neon);font:1rem/1 'Bebas Neue',Impact,sans-serif;letter-spacing:.7px
+}
+.lux-roster-open{
+ position:absolute;top:14px;right:15px;display:grid;place-items:center;width:30px;height:30px;border:1px solid #ffffff1c;
+ border-radius:50%;background:#ffffff08;color:#bdc8b8;font-size:1rem;transition:.2s ease
+}
+.lux-roster-card:hover .lux-roster-open,.lux-roster-card:focus-within .lux-roster-open{border-color:var(--fluxo-line-strong);background:#a8ff0014;color:var(--fluxo-neon);transform:translate(2px,-2px)}
+.lux-roster-identity{display:flex;flex:1 0 auto;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;min-width:0;padding:19px 0 12px;text-align:center}
+.lux-roster-avatar{
+ display:grid!important;place-items:center!important;width:84px!important;height:84px!important;flex:0 0 84px!important;border:2px solid var(--fluxo-line-strong)!important;
+ border-radius:50%!important;background:linear-gradient(135deg,#a8ff00,#397d00)!important;color:#071006!important;object-fit:cover!important;
+ font:2rem 'Bebas Neue',Impact,sans-serif!important;box-shadow:0 0 0 5px #a8ff000a,0 0 26px #a8ff002d!important
+}
+.lux-roster-identity>span{display:grid;justify-items:center;gap:3px;width:100%;min-width:0}
+.lux-roster-identity strong{display:block;max-width:100%;overflow:hidden;color:#fff;font:clamp(1.35rem,2vw,1.65rem)/1 'Bebas Neue',Impact,sans-serif;letter-spacing:1px;text-overflow:ellipsis;white-space:nowrap}
+.lux-roster-identity small{color:#aeb8aa;font-size:.68rem;line-height:1.35;text-transform:uppercase;letter-spacing:.45px}
+.lux-roster-identity em{margin-top:4px;padding:4px 9px;border:1px solid #b8ff002b;border-radius:999px;background:#a8ff000b;color:var(--fluxo-bright);font:normal 600 .58rem/1 'Segoe UI',sans-serif;letter-spacing:.85px;text-transform:uppercase}
+.lux-roster-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;border:1px solid #ffffff11;border-radius:12px;background:#040705b8;overflow:hidden}
+.lux-roster-stats>span{display:grid;justify-items:center;gap:3px;padding:9px 5px}.lux-roster-stats>span+span{border-left:1px solid #ffffff10}
+.lux-roster-stats b{color:var(--fluxo-neon);font:1.35rem/1 'Bebas Neue',Impact,sans-serif;text-shadow:0 0 12px #a8ff0035}
+.lux-roster-stats small{color:#929d8f;font:600 .51rem/1 'Segoe UI',sans-serif;letter-spacing:.75px}
+.lux-roster-state{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;color:#9eaa9a;font:600 .54rem/1 'Segoe UI',sans-serif;letter-spacing:1.05px}
+.lux-roster-state i{width:6px;height:6px;border-radius:50%;background:var(--fluxo-neon);box-shadow:0 0 8px #a8ff00}.lux-roster-state.is-pending{color:#f0cf71}.lux-roster-state.is-pending i{background:#e7c34d;box-shadow:0 0 8px #e7c34d}
+.lux-roster-card.is-first{border-color:#d6b84d70!important}.lux-roster-card.is-first .lux-roster-rank{border-color:#e2c35d88;background:#2b230d;color:#ffe786}
+.lux-roster-card.is-second .lux-roster-rank{border-color:#bac4c866;background:#151a1b;color:#dce7eb}.lux-roster-card.is-third .lux-roster-rank{border-color:#b67a4d70;background:#25160d;color:#eab183}
+.lux-roster-admin-card{display:grid!important;grid-template-rows:1fr auto!important}.lux-roster-admin-card .lux-roster-card-main{min-height:252px}
+.lux-roster-card-actions{display:flex;gap:8px;width:100%;padding:10px 12px 12px;border-top:1px solid #ffffff10;background:#050806b5;box-sizing:border-box}
+.lux-roster-action{
+ display:flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;flex:1 1 0;min-width:0;min-height:38px;padding:8px 10px!important;
+ border:1px solid var(--fluxo-line)!important;border-radius:9px!important;background:#a8ff000b!important;color:var(--fluxo-bright)!important;
+ font:.82rem 'Bebas Neue',Impact,sans-serif!important;letter-spacing:.8px!important;cursor:pointer;white-space:nowrap
+}
+.lux-roster-action:hover{border-color:var(--fluxo-neon)!important;background:#a8ff0017!important}.lux-roster-action.lux-danger-action{border-color:#ff4d5550!important;background:#ff4d550d!important;color:#ff9ba0!important}.lux-roster-action.lux-danger-action:hover{border-color:#ff4d55b5!important;background:#ff4d551b!important;color:#ffd7d9!important}
+.lux-roster-empty{grid-column:1/-1;margin:0!important;padding:44px 20px!important;border:1px dashed var(--fluxo-line)!important;border-radius:16px!important;text-align:center}
+@media(max-width:920px){.lux-member-directory-list,.hub-member-directory-list{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:620px){
+ .lux-roster-shell{padding:17px 14px!important;border-radius:18px!important}
+ .lux-roster-header{grid-template-columns:minmax(0,1fr) 104px!important;align-items:center!important;gap:12px!important;margin-bottom:16px!important;padding-bottom:17px!important}
+ .lux-roster-header h2,.lux-roster-header h3{font-size:clamp(2.1rem,10vw,3.1rem)!important;line-height:.92!important}.lux-roster-header p{font-size:.72rem!important;line-height:1.45!important}
+ .lux-roster-header>aside{min-height:76px;padding:9px 6px;border-radius:13px}.lux-roster-header>aside b{font-size:2rem}.lux-roster-header>aside span{font-size:.48rem;letter-spacing:.8px}
+ .lux-roster-search,.hub-directory-search.lux-roster-search{margin-bottom:12px!important}.lux-roster-search input,.hub-directory-search.lux-roster-search input{height:49px!important;border-radius:12px!important}
+ .lux-member-directory-list,.hub-member-directory-list{grid-template-columns:minmax(0,1fr)!important;gap:11px!important}
+ .lux-roster-card,.lux-roster-card-button,.lux-roster-card-main,.lux-roster-admin-card .lux-roster-card-main{min-height:232px}
+ .lux-roster-card-button,.lux-roster-card-main{padding:14px 14px 13px}.lux-roster-identity{padding-top:22px}.lux-roster-avatar{width:76px!important;height:76px!important;flex-basis:76px!important}
+ .lux-roster-identity strong{font-size:1.45rem}.lux-roster-stats>span{padding:8px 4px}.lux-roster-card-actions{padding:9px 10px 10px}
+}
+@media(hover:none){.lux-roster-card:hover{transform:none}}

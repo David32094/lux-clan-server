@@ -260,6 +260,26 @@
     return `1v1 ${Number(stats.victories_1v1 || 0)} · 2v2 ${Number(stats.victories_2v2 || 0)} · 3v3 ${Number(stats.victories_3v3 || 0)} · 4v4 ${Number(stats.victories_4v4 || 0)}`;
   }
 
+  function rosterPlaceClass(index) {
+    return index === 0 ? ' is-first' : index === 1 ? ' is-second' : index === 2 ? ' is-third' : '';
+  }
+  function rosterMeta(member = {}) {
+    const country = member.country_name || countryLabel(member.country_code);
+    return `${esc(country || 'País pendiente')}${member.age ? ` · ${Number(member.age)} años` : ''}`;
+  }
+  function rosterRole(member = {}) {
+    return esc(member.primary_game_role || member.secondary_game_role || 'Integrante');
+  }
+  function rosterCardBody(member = {}, stats = {}, index = 0, pending = false) {
+    const total = Number(stats.victories_total || 0);
+    const matches = Math.max(total, Number(stats.matches_played || stats.matches_total || 0));
+    return `<span class="lux-roster-rank" aria-hidden="true">#${index + 1}</span>
+      <span class="lux-roster-open" aria-hidden="true">↗</span>
+      <span class="lux-roster-identity">${avatarHtml(member, 'lux-roster-avatar')}<span><strong>${esc(member.display_name || 'Jugador')}</strong><small>${rosterMeta(member)}</small><em>${rosterRole(member)}</em></span></span>
+      <span class="lux-roster-stats" aria-hidden="true"><span><b>${Number(stats.victories_4v4 || 0)}</b><small>4V4</small></span><span><b>${total}</b><small>VICTORIAS</small></span><span><b>${matches}</b><small>PARTIDAS</small></span></span>
+      <span class="lux-roster-state${pending ? ' is-pending' : ''}"><i></i>${pending ? 'PERFIL PENDIENTE' : 'INTEGRANTE ACTIVO'}</span>`;
+  }
+
   let evidenceZoom = 1;
   function ensureEvidenceViewer() {
     if ($('lux-evidence-viewer')) return;
@@ -979,9 +999,9 @@
   function ensureMemberDirectory() {
     const page = document.querySelector('#hub-member .hub-page');
     if (!page || $('lux-member-directory')) return;
-    page.insertAdjacentHTML('beforeend', `<section id="lux-member-directory" class="hub-card lux-member-directory">
-      <div class="lux-member-directory-head"><div><span class="hub-kicker">COMPAÑEROS DEL CLAN</span><h3>Integrantes</h3><p>Consulta sus fichas, estadísticas y capturas aprobadas sin exponer correos.</p></div></div>
-      <label class="lux-member-search">BUSCAR INTEGRANTE<input id="lux-member-search" type="search" placeholder="Nombre o país" oninput="window.luxSupabase.renderMemberDirectory()"/></label>
+    page.insertAdjacentHTML('beforeend', `<section id="lux-member-directory" class="hub-card lux-member-directory lux-roster-shell">
+      <header class="lux-member-directory-head lux-roster-header"><div><span class="hub-kicker">PLANTILLA OFICIAL</span><h3>Integrantes FLUXO</h3><p>Conoce al equipo. Toca cualquier tarjeta para abrir su perfil, estadísticas y capturas aprobadas.</p></div><aside><b id="lux-member-directory-count">0</b><span>INTEGRANTES ACTIVOS</span></aside></header>
+      <label class="lux-member-search lux-roster-search"><span aria-hidden="true">⌕</span><input id="lux-member-search" type="search" placeholder="Buscar por nombre o país" aria-label="Buscar integrante" oninput="window.luxSupabase.renderMemberDirectory()"/></label>
       <div id="lux-member-directory-list" class="lux-member-directory-list"></div>
     </section>`);
   }
@@ -994,7 +1014,8 @@
       const searchable = `${row.display_name || ''} ${countryLabel(row.country_code)}`.toLocaleLowerCase('es');
       return !query || searchable.includes(query);
     });
-    target.innerHTML = rows.length ? rows.map((row, index) => `<button type="button" class="lux-member-public-row" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')"><i>#${index + 1}</i>${avatarHtml(row, 'lux-member-public-avatar')}<span><strong>${esc(row.display_name || 'Integrante')}</strong><small>${esc(countryLabel(row.country_code))}${row.age ? ` · ${Number(row.age)} años` : ''} · ${rankingModeLine(row)} · TOTAL ${Number(row.victories_total || 0)}</small></span><b>VER PERFIL</b></button>`).join('') : '<p class="hub-empty">No hay integrantes que coincidan con la búsqueda.</p>';
+    if ($('lux-member-directory-count')) $('lux-member-directory-count').textContent = rows.length;
+    target.innerHTML = rows.length ? rows.map((row, index) => `<button type="button" class="lux-roster-card lux-roster-card-button${rosterPlaceClass(index)}" aria-label="Abrir perfil de ${esc(row.display_name || 'Integrante')}" onclick="window.luxSupabase.openPublicPlayer('${esc(row.player_id)}')">${rosterCardBody(row, row, index)}</button>`).join('') : '<p class="hub-empty lux-roster-empty">No hay integrantes que coincidan con la búsqueda.</p>';
   }
   async function showMemberDirectory() {
     if (!state.user) { openLogin('member'); return; }
@@ -1220,11 +1241,11 @@
     return state.isOwner || state.roles.get(id) === 'member';
   }
   function bannerButton(member) {
-    return `<button type="button" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')">BANNER ↓</button>`;
+    return `<button type="button" class="lux-roster-action" aria-label="Descargar banner de ${esc(member.display_name || 'integrante')}" onclick="window.luxSupabase.downloadOfficialBanner('${esc(member.id)}')"><span aria-hidden="true">🎨</span>BANNER</button>`;
   }
   function removalButton(member, label = 'EXPULSAR') {
     return canRemoveMember(member.id)
-      ? `<button type="button" class="lux-danger-action" onclick="window.luxSupabase.requestMemberRemoval('${esc(member.id)}')">${label}</button>`
+      ? `<button type="button" class="lux-danger-action lux-roster-action" aria-label="${label.toLocaleLowerCase('es')} a ${esc(member.display_name || 'integrante')}" onclick="window.luxSupabase.requestMemberRemoval('${esc(member.id)}')"><span aria-hidden="true">⊘</span>${label}</button>`
       : '';
   }
   function renderDirectory() {
@@ -1235,8 +1256,10 @@
     target.innerHTML = rows.length ? rows.map((member, index) => {
       const stats = state.ranking.get(member.id) || {};
       const profileState = member.display_name === 'Jugador' ? ' · PERFIL PENDIENTE' : '';
-      return `<article class="hub-member-row"><i>#${index + 1}</i>${avatarHtml(member, 'hub-directory-avatar')}<div><strong>${esc(member.display_name || 'Jugador')}</strong><small>${esc(member.country_name || member.country_code || 'País pendiente')} · ${rankingModeLine(stats)} · TOTAL ${Number(stats.victories_total || 0)}${profileState}</small></div><span class="hub-member-row-actions"><button type="button" onclick="window.luxHub.openPlayer('${esc(member.id)}')">VER</button>${bannerButton(member)}${removalButton(member)}</span></article>`;
+      const pending = Boolean(profileState);
+      return `<article class="lux-roster-card lux-roster-admin-card${rosterPlaceClass(index)}"><button type="button" class="lux-roster-card-main" aria-label="Abrir perfil de ${esc(member.display_name || 'Jugador')}" onclick="window.luxHub.openPlayer('${esc(member.id)}')">${rosterCardBody(member, stats, index, pending)}</button><footer class="lux-roster-card-actions">${bannerButton(member)}${removalButton(member)}</footer></article>`;
     }).join('') : '<p class="hub-empty">No hay integrantes que coincidan con la búsqueda.</p>';
+    if ($('hub-member-directory-count')) $('hub-member-directory-count').textContent = rows.length;
   }
   async function showDirectory() {
     if (!state.isStaff) return;

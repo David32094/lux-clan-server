@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const user = { id:'11111111-1111-4111-8111-111111111111', email:'player@example.test', user_metadata:{ full_name:'Jugador de prueba' }, app_metadata:{ providers:['google'] } };
 const activeProfile = { id:user.id, display_name:'DAVID TEST', age:19, country_code:'br', country_name:'Brasil', avatar_path:null, onboarding_complete:true, membership_status:'active', is_public:true, public_slug:'david-test', primary_game_role:'Rusher', secondary_game_role:'Soporte', experience_level:'Competitivo' };
 
-async function mockSupabase(page, { profile=activeProfile, role='member', accounts=[] }={}) {
+async function mockSupabase(page, { profile=activeProfile, role='member', accounts=[], directoryProfiles=null, rankingRows=null }={}) {
   let currentProfile = profile ? { ...profile } : null;
   let currentAccounts = accounts.map(account => ({ ...account }));
   await page.route('**/supabase-client-config.js*', route => route.fulfill({ contentType:'text/javascript', body:"window.LUX_SUPABASE_CONFIG=Object.freeze({url:'https://test.supabase.co',publishableKey:'sb_publishable_test'});" }));
@@ -13,15 +13,19 @@ async function mockSupabase(page, { profile=activeProfile, role='member', accoun
     if (url.pathname === '/auth/v1/user') return json(user);
     if (url.pathname.includes('/auth/v1/token')) return json({ access_token:'renewed-token', refresh_token:'refresh-token', expires_in:3600, user });
     if (url.pathname.includes('/rest/v1/user_roles')) return json([{ role }]);
-    if (url.pathname.includes('/rest/v1/profiles') && request.method() === 'GET') return json(currentProfile ? [currentProfile] : []);
+    if (url.pathname.includes('/rest/v1/profiles') && request.method() === 'GET') {
+      const requestedId = url.searchParams.get('id');
+      if (requestedId) return json(currentProfile ? [currentProfile] : []);
+      return json(directoryProfiles || (currentProfile ? [currentProfile] : []));
+    }
     if (url.pathname.includes('/rest/v1/rpc/complete_my_onboarding')) {
       const payload = JSON.parse(request.postData() || '{}');
       currentProfile = { ...currentProfile, display_name:payload.p_display_name, age:payload.p_age, country_code:payload.p_country_code, country_name:payload.p_country_name, avatar_path:payload.p_avatar_path,
         primary_game_role:payload.p_primary_game_role, secondary_game_role:payload.p_secondary_game_role, experience_level:payload.p_experience_level, onboarding_complete:true };
       return json(currentProfile);
     }
-    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking') || url.pathname.includes('/rest/v1/rpc/get_public_ranking')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []);
-    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory') || url.pathname.includes('/rest/v1/rpc/get_clan_directory')) return json(currentProfile ? [{ ...currentProfile, player_id:currentProfile.id }] : []);
+    if (url.pathname.includes('/rest/v1/rpc/get_public_clan_ranking') || url.pathname.includes('/rest/v1/rpc/get_public_ranking')) return json(rankingRows || (currentProfile ? [{ ...currentProfile, player_id:currentProfile.id, victories_1v1:1, victories_2v2:0, victories_3v3:0, victories_4v4:2, victories_other:0, victories_total:3, matches_played:4, wins:3, losses:1, win_rate:75, kills_total:18, average_damage:2230 }] : []));
+    if (url.pathname.includes('/rest/v1/rpc/get_authenticated_clan_directory') || url.pathname.includes('/rest/v1/rpc/get_clan_directory')) return json((directoryProfiles || (currentProfile ? [currentProfile] : [])).map(row => ({ ...row, player_id:row.player_id || row.id })));
     if (url.pathname.includes('/rest/v1/rpc/get_period_ranking')) return json([]);
     if (url.pathname.includes('/rest/v1/rpc/get_clan_access_settings')) return json([{ access_mode:'open', updated_at:new Date().toISOString() }]);
     if (url.pathname.includes('/rest/v1/rpc/owner_list_clan_users')) return json(currentAccounts);
@@ -160,6 +164,56 @@ test('integrante y administrador usan una cabecera de pestañas con la misma alt
   expect(member.rows).toBe(1);
   expect(admin.rows).toBe(1);
   expect(Math.abs(member.height - admin.height)).toBeLessThanOrEqual(1);
+});
+
+test('Integrantes usa tarjetas simétricas y sin el botón gigante Ver perfil', async ({ page }) => {
+  const members = [
+    activeProfile,
+    { ...activeProfile, id:'22222222-2222-4222-8222-222222222222', display_name:'CHRIS AURA', age:14, country_code:'ve', country_name:'Venezuela', primary_game_role:'Soporte' },
+    { ...activeProfile, id:'33333333-3333-4333-8333-333333333333', display_name:'EDUXNIKO', age:17, country_code:'mx', country_name:'México', primary_game_role:'Rusher' },
+    { ...activeProfile, id:'44444444-4444-4444-8444-444444444444', display_name:'AARON 10', age:20, country_code:'mx', country_name:'México', primary_game_role:'Flexible' }
+  ];
+  const rankingRows = members.map((member, index) => ({ ...member, player_id:member.id, victories_1v1:0, victories_2v2:index === 2 ? 1 : 0, victories_3v3:0, victories_4v4:4 - index, victories_total:5 - index, matches_played:7 - index }));
+  await mockSupabase(page, { role:'owner', directoryProfiles:members, rankingRows });
+  await page.goto(oauthUrl());
+  await expect.poll(() => page.evaluate(() => Boolean(window.luxSupabase?._core?.state?.user))).toBe(true);
+
+  await page.evaluate(() => window.luxSupabase.openMember('directory'));
+  await expect(page.locator('#lux-member-directory')).toBeVisible();
+  await page.waitForTimeout(650);
+  await expect(page.locator('#lux-member-directory-list .lux-roster-card')).toHaveCount(4);
+  await expect(page.locator('#lux-member-directory').getByText('VER PERFIL', { exact:true })).toHaveCount(0);
+  const memberLayout = await page.locator('#lux-member-directory').evaluate(panel => {
+    const cards = [...panel.querySelectorAll('.lux-roster-card')].map(card => card.getBoundingClientRect());
+    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth };
+  });
+  expect(memberLayout.overflow).toBeLessThanOrEqual(1);
+  expect(Math.max(...memberLayout.heights) - Math.min(...memberLayout.heights)).toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => window.luxSupabase.openLeader());
+  await page.evaluate(() => window.luxSupabase.navigateAdmin('directory'));
+  await expect(page.locator('#hub-member-directory')).toBeVisible();
+  await page.waitForTimeout(650);
+  await expect(page.locator('#hub-member-directory-list .lux-roster-card')).toHaveCount(4);
+  await expect(page.locator('#hub-member-directory-list').getByRole('button', { name:'VER', exact:true })).toHaveCount(0);
+  await expect(page.locator('#hub-member-directory-list').getByRole('button', { name:/banner/i }).first()).toBeVisible();
+  const adminLayout = await page.locator('#hub-member-directory').evaluate(panel => {
+    const cards = [...panel.querySelectorAll('.lux-roster-card')].map(card => card.getBoundingClientRect());
+    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth };
+  });
+  expect(adminLayout.overflow).toBeLessThanOrEqual(1);
+  expect(Math.max(...adminLayout.heights) - Math.min(...adminLayout.heights)).toBeLessThanOrEqual(1);
+  expect(Math.abs(adminLayout.width - memberLayout.width)).toBeLessThanOrEqual(1);
+  if (page.viewportSize().width > 920) {
+    expect(memberLayout.columns).toBe(3);
+    expect(adminLayout.columns).toBe(3);
+  } else if (page.viewportSize().width > 620) {
+    expect(memberLayout.columns).toBe(2);
+    expect(adminLayout.columns).toBe(2);
+  } else {
+    expect(memberLayout.columns).toBe(1);
+    expect(adminLayout.columns).toBe(1);
+  }
 });
 
 test('Banners conserva la cabecera administrativa en las mismas coordenadas', async ({ page }) => {
