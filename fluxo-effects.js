@@ -7,6 +7,20 @@
   const reduceMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const saveData = () => Boolean(navigator.connection?.saveData);
   const finePointer = () => Boolean(window.matchMedia?.('(hover:hover) and (pointer:fine)').matches);
+  const tabSelector = '.lux-member-tabs,.lux-admin-tabs,.lux-context-tabs';
+  const tabButtonSelector = '.lux-member-tabs>button,.lux-admin-tabs>button,.lux-context-tabs>button';
+  const tiltSelector = '.hub-choice,.hub-card,.lux-public-card,.lux-v3-card,.lux-event-card,.lux-announcement,.lux-ops-card,.card';
+  const observedTabs = new WeakSet();
+  let statObserver = null;
+
+  function detectPerformanceProfile() {
+    const memory = Number(navigator.deviceMemory || 0);
+    const cores = Number(navigator.hardwareConcurrency || 0);
+    const touchDevice = !finePointer();
+    const lite = reduceMotion() || saveData() || touchDevice || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);
+    document.documentElement.classList.toggle('fluxo-lite', lite);
+    document.documentElement.classList.toggle('fluxo-touch', touchDevice);
+  }
 
   function createAmbient() {
     if (document.getElementById('fluxo-ambient')) return;
@@ -15,7 +29,8 @@
     ambient.setAttribute('aria-hidden', 'true');
     ambient.innerHTML = '<div class="fluxo-pointer-aura"></div><i class="fluxo-smoke fluxo-smoke--a"></i><i class="fluxo-smoke fluxo-smoke--b"></i>';
     const fragment = document.createDocumentFragment();
-    for (let index = 0; index < 18; index += 1) {
+    const particleCount = document.documentElement.classList.contains('fluxo-lite') ? 8 : 18;
+    for (let index = 0; index < particleCount; index += 1) {
       const particle = document.createElement('i');
       particle.className = 'fluxo-particle';
       particle.style.setProperty('--fx-x', `${(index * 37 + 11) % 98}%`);
@@ -30,7 +45,7 @@
   }
 
   function installPointerAura() {
-    if (!finePointer() || reduceMotion()) return;
+    if (!finePointer() || reduceMotion() || document.documentElement.classList.contains('fluxo-lite')) return;
     let frame = 0, nextX = 0, nextY = 0;
     document.addEventListener('pointermove', event => {
       nextX = event.clientX;
@@ -62,6 +77,7 @@
     const close = () => {
       if (closed) return;
       closed = true;
+      intro.style.pointerEvents = 'none';
       intro.classList.add('fluxo-intro-leaving');
       document.body.classList.remove('fluxo-intro-running');
       setTimeout(() => intro.remove(), 380);
@@ -86,26 +102,33 @@
 
   function installCardTilt() {
     if (!finePointer() || reduceMotion()) return;
-    let current = null, frame = 0, eventX = 0, eventY = 0;
-    document.addEventListener('pointermove', event => {
-      const card = event.target.closest?.('.fluxo-interactive-card');
-      if (!card) {
-        if (current) {
-          current.style.removeProperty('--fluxo-tilt-x');
-          current.style.removeProperty('--fluxo-tilt-y');
-          current = null;
-        }
-        return;
+    let current = null, currentRect = null, frame = 0, eventX = 0, eventY = 0;
+    const reset = () => {
+      if (current) {
+        current.style.removeProperty('--fluxo-tilt-x');
+        current.style.removeProperty('--fluxo-tilt-y');
+        current.classList.remove('fluxo-tilt-active');
       }
+      current = null;
+      currentRect = null;
+    };
+    document.addEventListener('pointerover', event => {
+      const card = event.target.closest?.('.fluxo-interactive-card');
+      if (!card || !card.matches(tiltSelector) || card === current) return;
+      reset();
       current = card;
+      currentRect = card.getBoundingClientRect();
+      card.classList.add('fluxo-tilt-active');
+    }, { passive:true });
+    document.addEventListener('pointermove', event => {
+      if (!current || !currentRect) return;
       eventX = event.clientX;
       eventY = event.clientY;
       if (frame) return;
       frame = requestAnimationFrame(() => {
-        if (current) {
-          const rect = current.getBoundingClientRect();
-          const x = Math.max(-1, Math.min(1, (eventX - rect.left) / Math.max(1, rect.width) * 2 - 1));
-          const y = Math.max(-1, Math.min(1, (eventY - rect.top) / Math.max(1, rect.height) * 2 - 1));
+        if (current && currentRect) {
+          const x = Math.max(-1, Math.min(1, (eventX - currentRect.left) / Math.max(1, currentRect.width) * 2 - 1));
+          const y = Math.max(-1, Math.min(1, (eventY - currentRect.top) / Math.max(1, currentRect.height) * 2 - 1));
           current.style.setProperty('--fluxo-tilt-x', `${(-y * 1.25).toFixed(2)}deg`);
           current.style.setProperty('--fluxo-tilt-y', `${(x * 1.45).toFixed(2)}deg`);
         }
@@ -113,12 +136,70 @@
       });
     }, { passive:true });
     document.addEventListener('pointerout', event => {
-      const card = event.target.closest?.('.fluxo-interactive-card');
-      if (!card || card.contains(event.relatedTarget)) return;
-      card.style.removeProperty('--fluxo-tilt-x');
-      card.style.removeProperty('--fluxo-tilt-y');
-      if (current === card) current = null;
+      if (!current || current.contains(event.relatedTarget)) return;
+      reset();
     }, { passive:true });
+    window.addEventListener('scroll', reset, { passive:true, capture:true });
+    window.addEventListener('resize', reset, { passive:true });
+  }
+
+  function installRipples() {
+    if (!finePointer() || document.documentElement.classList.contains('fluxo-touch')) return;
+    document.addEventListener('pointerdown', event => {
+      const button = event.target.closest?.('button');
+      if (!button || button.disabled || event.button > 0 || event.pointerType === 'touch' || reduceMotion()) return;
+      button.classList.add('fluxo-ripple-host');
+      const rect = button.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height) * 1.8;
+      const ripple = document.createElement('i');
+      ripple.className = 'fluxo-ripple';
+      ripple.style.width = ripple.style.height = `${size}px`;
+      ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+      ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+      button.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove(), { once:true });
+      setTimeout(() => ripple.remove(), 650);
+    }, { passive:true });
+  }
+
+  function syncTabGlider(container) {
+    if (!container?.isConnected) return;
+    let glider = container.querySelector(':scope > .fluxo-tab-glider');
+    if (!glider) {
+      glider = document.createElement('i');
+      glider.className = 'fluxo-tab-glider';
+      glider.setAttribute('aria-hidden', 'true');
+      container.appendChild(glider);
+      container.classList.add('fluxo-tabs-ready');
+    }
+    const active = container.querySelector(':scope > button.active');
+    if (!active || container.hidden || container.closest('[hidden]')) {
+      glider.style.opacity = '0';
+      return;
+    }
+    glider.style.width = `${active.offsetWidth}px`;
+    glider.style.transform = `translate3d(${active.offsetLeft}px,0,0)`;
+    glider.style.opacity = '1';
+  }
+
+  function discoverTabs(root = document) {
+    const containers = [];
+    if (root instanceof Element) {
+      if (root.matches(tabSelector)) containers.push(root);
+      root.querySelectorAll?.(tabSelector).forEach(container => containers.push(container));
+      const parent = root.closest?.(tabSelector);
+      if (parent) containers.push(parent);
+    } else root.querySelectorAll?.(tabSelector).forEach(container => containers.push(container));
+    [...new Set(containers)].forEach(container => {
+      syncTabGlider(container);
+      if (observedTabs.has(container)) return;
+      observedTabs.add(container);
+      if ('ResizeObserver' in window) new ResizeObserver(() => syncTabGlider(container)).observe(container);
+    });
+  }
+
+  function syncAllTabGliders() {
+    document.querySelectorAll(tabSelector).forEach(syncTabGlider);
   }
 
   const numeric = (row, name) => Number(row.dataset[`fluxo${name}`] || 0);
@@ -176,8 +257,9 @@
   function decorateRankings(root = document) {
     const containers = [];
     if (root instanceof Element && root.matches('.lux-public-ranking')) containers.push(root);
+    if (root instanceof Element && root.closest('.lux-public-ranking')) containers.push(root.closest('.lux-public-ranking'));
     root.querySelectorAll?.('.lux-public-ranking').forEach(item => containers.push(item));
-    containers.forEach(container => {
+    [...new Set(containers)].forEach(container => {
       const rows = [...container.children].filter(child => child.matches?.('button.lux-public-row,button.lux-period-row'));
       if (!rows.length) return;
       createPodium(container, rows);
@@ -212,7 +294,14 @@
   }
 
   function animateVisibleStats(root = document) {
-    root.querySelectorAll?.('.lux-profile-key-stats b,.lux-player-stats b,.lux-advanced-stats b,.hub-modal-stats b').forEach(animateNumber);
+    const selector = '.lux-profile-key-stats b,.lux-player-stats b,.lux-advanced-stats b,.hub-modal-stats b';
+    const targets = [];
+    if (root instanceof Element && root.matches(selector)) targets.push(root);
+    root.querySelectorAll?.(selector).forEach(element => targets.push(element));
+    targets.forEach(element => {
+      if (statObserver) statObserver.observe(element);
+      else animateNumber(element);
+    });
   }
 
   function syncScanner(progress = null) {
@@ -249,36 +338,100 @@
     setTimeout(() => overlay.remove(), 1800);
   }
 
+  function optimizeImages(root = document) {
+    const images = [];
+    if (root instanceof HTMLImageElement) images.push(root);
+    root.querySelectorAll?.('img').forEach(image => images.push(image));
+    images.forEach(image => {
+      image.decoding = 'async';
+      if (!image.matches('.fluxo-home-logo,.fluxo-intro-logo,.hdr-brand img') && !image.closest('.lux-player-hero')) image.loading = 'lazy';
+    });
+  }
+
+  function prepareDynamicNode(node) {
+    if (!(node instanceof Element) || node.matches('.fluxo-ripple,.fluxo-confetti')) return;
+    decorateCards(node);
+    decorateRankings(node);
+    discoverTabs(node);
+    animateVisibleStats(node);
+    optimizeImages(node);
+  }
+
   function observeDynamicUi() {
-    let scheduled = false;
-    const refresh = () => {
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(() => {
-        decorateCards();
-        decorateRankings();
-        decorateMvp();
-        animateVisibleStats();
-        syncScanner();
-        scheduled = false;
+    statObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        statObserver.unobserve(entry.target);
+        animateNumber(entry.target);
       });
+    }, { rootMargin:'30px' }) : null;
+
+    let frame = 0;
+    const pendingNodes = new Set();
+    const pendingTabs = new Set();
+    let refreshMvp = false;
+    let refreshScanner = false;
+    const flush = () => {
+      frame = 0;
+      pendingNodes.forEach(prepareDynamicNode);
+      pendingTabs.forEach(syncTabGlider);
+      pendingNodes.clear();
+      pendingTabs.clear();
+      if (refreshMvp) decorateMvp();
+      if (refreshScanner) syncScanner();
+      refreshMvp = false;
+      refreshScanner = false;
     };
-    new MutationObserver(refresh).observe(document.body, {
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(flush); };
+    new MutationObserver(records => {
+      records.forEach(record => {
+        if (record.type === 'childList') {
+          record.addedNodes.forEach(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) pendingNodes.add(node);
+          });
+          if (record.target.closest?.('#admin-mvp,.hub-mvp')) refreshMvp = true;
+          if (record.target.closest?.('#lux-match-preview,#lux-match-ocr-progress')) refreshScanner = true;
+        } else if (record.type === 'attributes') {
+          const target = record.target;
+          if (target.matches?.(tabButtonSelector) || target.matches?.(tabSelector)) pendingTabs.add(target.closest(tabSelector) || target);
+          if (record.attributeName === 'hidden') {
+            discoverTabs(target);
+            animateVisibleStats(target);
+          }
+          if (target.matches?.('#lux-match-preview,#lux-match-ocr-progress')) refreshScanner = true;
+        }
+      });
+      schedule();
+    }).observe(document.body, {
       subtree:true,
       childList:true,
       attributes:true,
       attributeFilter:['hidden','class']
     });
-    refresh();
+
+    decorateCards();
+    decorateRankings();
+    decorateMvp();
+    discoverTabs();
+    animateVisibleStats();
+    optimizeImages();
+    syncScanner();
   }
 
   function installEvents() {
     document.addEventListener('fluxo:scan-progress', event => syncScanner(Number(event.detail?.percent || 0)));
     document.addEventListener('fluxo:scan-preview', () => syncScanner(1));
     document.addEventListener('fluxo:victory-approved', event => celebrateVictory(event.detail || {}));
+    document.addEventListener('fluxo:navigation-end', () => requestAnimationFrame(syncAllTabGliders));
+    document.addEventListener('click', event => {
+      if (event.target.closest?.(tabButtonSelector)) requestAnimationFrame(syncAllTabGliders);
+    }, { passive:true });
+    document.addEventListener('visibilitychange', () => document.documentElement.classList.toggle('fluxo-paused', document.hidden));
+    window.addEventListener('orientationchange', () => requestAnimationFrame(syncAllTabGliders), { passive:true });
   }
 
   function install() {
+    detectPerformanceProfile();
     createAmbient();
     showIntro();
     installPointerAura();
@@ -286,6 +439,7 @@
     decorateRankings();
     decorateMvp();
     installCardTilt();
+    installRipples();
     installEvents();
     observeDynamicUi();
   }
@@ -294,4 +448,3 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once:true });
   else install();
 })();
-

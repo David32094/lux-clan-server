@@ -19,6 +19,10 @@
 
 html { background:#020403; }
 
+html.fluxo-paused *,
+html.fluxo-paused *::before,
+html.fluxo-paused *::after { animation-play-state:paused!important; }
+
 body {
   isolation:isolate;
   background:#020403!important;
@@ -57,10 +61,9 @@ body::before {
   width:min(620px,75vw);
   aspect-ratio:1;
   border-radius:50%;
-  filter:blur(72px);
   opacity:.13;
   will-change:transform;
-  background:radial-gradient(circle,#a8ff00 0,#55a900 30%,transparent 68%);
+  background:radial-gradient(circle,#a8ff00 0,#55a90080 28%,#2b5b0038 48%,transparent 72%);
   animation:fluxo-smoke-drift 18s ease-in-out infinite alternate;
 }
 
@@ -118,7 +121,7 @@ body.lux-hub-editor .fluxo-smoke--b { left:28%; bottom:-35%; opacity:.12; }
 
 #fluxo-cinematic-intro::before { top:30%; }
 #fluxo-cinematic-intro::after { bottom:28%; animation-delay:.18s; }
-#fluxo-cinematic-intro.fluxo-intro-leaving { opacity:0; visibility:hidden; }
+#fluxo-cinematic-intro.fluxo-intro-leaving { opacity:0; visibility:hidden; pointer-events:none; }
 body.fluxo-intro-running { overflow:hidden!important; }
 
 .fluxo-intro-core {
@@ -244,8 +247,39 @@ body.lux-navigation-busy::before {
   animation:fluxo-navigation-line .75s ease-in-out infinite;
 }
 
+body.lux-navigation-busy::after { display:none!important; }
+
 .lux-view-enter {
   animation:fluxo-view-arrive .28s cubic-bezier(.2,.8,.2,1) both!important;
+}
+
+/* El glider se mueve entre pestañas sin reconstruir la cabecera. */
+.lux-member-tabs,
+.lux-admin-tabs,
+.lux-context-tabs { position:sticky!important; isolation:isolate; }
+
+.lux-member-tabs.fluxo-tabs-ready button,
+.lux-admin-tabs.fluxo-tabs-ready button,
+.lux-context-tabs.fluxo-tabs-ready button { z-index:2; }
+
+.lux-member-tabs.fluxo-tabs-ready button::after,
+.lux-admin-tabs.fluxo-tabs-ready button::after,
+.lux-context-tabs.fluxo-tabs-ready button::after { opacity:0!important; }
+
+.fluxo-tab-glider {
+  position:absolute;
+  z-index:1;
+  left:0;
+  bottom:3px;
+  height:calc(100% - 6px);
+  border:1px solid #a8ff004f;
+  border-radius:11px;
+  opacity:0;
+  pointer-events:none;
+  background:linear-gradient(145deg,#a8ff0014,#67c60008);
+  box-shadow:inset 0 -3px 0 #a8ff00,0 0 22px #a8ff0019;
+  transition:transform .28s cubic-bezier(.2,.82,.22,1),width .28s cubic-bezier(.2,.82,.22,1),opacity .14s ease;
+  will-change:transform,width;
 }
 
 /* Tarjetas con borde de energía y 3D suave. */
@@ -256,6 +290,7 @@ body.lux-navigation-busy::before {
   isolation:isolate;
   transform-style:preserve-3d;
   transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background-color .2s ease!important;
+  contain:paint;
 }
 
 .fluxo-interactive-card::before {
@@ -275,6 +310,7 @@ body.lux-navigation-busy::before {
 }
 
 @media (hover:hover) and (pointer:fine) {
+  .fluxo-interactive-card.fluxo-tilt-active { will-change:transform; }
   .fluxo-interactive-card:hover {
     border-color:#a8ff0070!important;
     box-shadow:0 18px 48px #000a,0 0 28px #a8ff001b!important;
@@ -284,6 +320,20 @@ body.lux-navigation-busy::before {
     opacity:.92;
     animation:fluxo-border-run 2.4s linear infinite;
   }
+}
+
+.fluxo-ripple-host { position:relative!important; overflow:hidden!important; isolation:isolate; }
+.fluxo-ripple {
+  position:absolute;
+  z-index:20;
+  display:block;
+  border-radius:50%;
+  pointer-events:none;
+  opacity:.34;
+  background:radial-gradient(circle,#efffcf 0,#a8ff00 28%,transparent 70%);
+  transform:scale(0);
+  animation:fluxo-ripple-out .52s cubic-bezier(.2,.7,.2,1) both;
+  will-change:transform,opacity;
 }
 
 @media (hover:none) {
@@ -494,8 +544,7 @@ body.lux-hub-editor .canvas-wrap::after {
   position:absolute;
   z-index:-1;
   left:15%;right:15%;bottom:2%;height:10%;
-  background:#a8ff0030;
-  filter:blur(32px);
+  background:radial-gradient(ellipse,#a8ff0033,transparent 70%);
 }
 
 @keyframes fluxo-smoke-drift { to { transform:translate3d(9vw,8vh,0) scale(1.12); } }
@@ -515,10 +564,11 @@ body.lux-hub-editor .canvas-wrap::after {
 @keyframes fluxo-celebration-backdrop { 0%,100%{opacity:0}16%,72%{opacity:1} }
 @keyframes fluxo-victory-pop { from{opacity:0;transform:scale(.72) translateY(18px)}to{opacity:1;transform:scale(1) translateY(0)} }
 @keyframes fluxo-confetti-burst { from{opacity:1;transform:translate(-50%,-50%) rotate(0)}to{opacity:0;transform:translate(calc(-50% + var(--confetti-x)),calc(-50% + var(--confetti-y))) rotate(var(--confetti-rotate))} }
+@keyframes fluxo-ripple-out { 0%{opacity:.4;transform:scale(0)}70%{opacity:.16}100%{opacity:0;transform:scale(1)} }
 
 @media(max-width:680px) {
   .fluxo-pointer-aura { display:none; }
-  .fluxo-smoke { filter:blur(58px);opacity:.1; }
+  .fluxo-smoke { opacity:.085; }
   .fluxo-podium { gap:5px;padding:14px 6px 8px;border-radius:14px; }
   .fluxo-podium-player { padding:11px 4px 9px!important;border-radius:11px!important; }
   .fluxo-podium-player img,.fluxo-podium-player>.lux-access-initial,.fluxo-podium-player>.lux-v3-row-avatar { width:49px!important;height:49px!important; }
@@ -533,6 +583,35 @@ body.lux-hub-editor .canvas-wrap::after {
   .fluxo-victory-core { padding:25px 12px; }
 }
 
+/* Perfil fluido para tacto y teléfonos: misma apariencia, menos repintado. */
+@media(max-width:860px),(hover:none) {
+  body>header,
+  .hub-nav,
+  #hub-member .hub-nav,
+  #hub-admin .hub-nav,
+  #lux-public-screen .hub-nav,
+  #hub-editor-nav .lux-editor-context-bar {
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    background:linear-gradient(105deg,#060a07fc,#0e160ffc 48%,#060907fc)!important;
+  }
+  .fluxo-smoke--b { display:none; }
+  .fluxo-particle:nth-of-type(n+10) { display:none; }
+  .fluxo-interactive-card { contain:paint;transform:none!important; }
+  .fluxo-interactive-card::before { display:none; }
+  .hub-mvp.fluxo-mvp-live .hub-mvp-avatar { animation-duration:2.8s; }
+  .fluxo-tab-glider { transition-duration:.2s; }
+  .lux-view-enter { animation-duration:.18s!important; }
+}
+
+html.fluxo-lite .fluxo-pointer-aura,
+html.fluxo-lite .fluxo-smoke--b { display:none; }
+html.fluxo-lite .fluxo-particle:nth-of-type(n+7) { display:none; }
+html.fluxo-lite .fluxo-smoke { animation-duration:28s;opacity:.07; }
+html.fluxo-lite .fluxo-interactive-card::before { display:none; }
+html.fluxo-lite .hdr-brand::before,
+html.fluxo-lite .fluxo-home-logo { animation-duration:4.5s; }
+
 @media(prefers-reduced-motion:reduce) {
   #fluxo-cinematic-intro { display:none!important; }
   .fluxo-smoke,.fluxo-particle,.hdr-brand::before,.fluxo-home-logo,
@@ -544,5 +623,6 @@ body.lux-hub-editor .canvas-wrap::after {
   .fluxo-interactive-card:hover { transform:none!important; }
   .lux-view-enter { animation:none!important; }
   .fluxo-pointer-aura { display:none; }
+  .fluxo-tab-glider { transition:none!important; }
+  .fluxo-ripple { display:none!important; }
 }
-

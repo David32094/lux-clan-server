@@ -832,7 +832,8 @@
       if(context==='member'||context==='admin')return openContextRanking(context);
       await originalOpenRanking(null);await ensureRankingFilters();await renderPeriodRanking($('lux-ranking-period')?.value||'all');
     };
-    const observer=new MutationObserver(()=>ensureNotificationBell());
+    let notificationFrame=0;
+    const observer=new MutationObserver(()=>{if(notificationFrame)return;notificationFrame=requestAnimationFrame(()=>{notificationFrame=0;ensureNotificationBell();});});
     observer.observe(document.body,{subtree:true,childList:true});ensureNotificationBell();
     refreshAdminSummary();
     if(appState().user){
