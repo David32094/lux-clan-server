@@ -148,6 +148,10 @@
     document.addEventListener('pointerdown', event => {
       const button = event.target.closest?.('button');
       if (!button || button.disabled || event.button > 0 || event.pointerType === 'touch' || reduceMotion()) return;
+      /* Un botón flotante cambiaría de coordenadas si se fuerza a position:relative
+         durante el efecto. Los cierres deben permanecer totalmente inmóviles. */
+      const buttonPosition = getComputedStyle(button).position;
+      if (buttonPosition === 'absolute' || buttonPosition === 'fixed') return;
       button.classList.add('fluxo-ripple-host');
       const rect = button.getBoundingClientRect();
       const size = Math.max(rect.width, rect.height) * 1.8;
@@ -157,8 +161,12 @@
       ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
       ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
       button.appendChild(ripple);
-      ripple.addEventListener('animationend', () => ripple.remove(), { once:true });
-      setTimeout(() => ripple.remove(), 650);
+      const cleanup = () => {
+        ripple.remove();
+        if (!button.querySelector(':scope > .fluxo-ripple')) button.classList.remove('fluxo-ripple-host');
+      };
+      ripple.addEventListener('animationend', cleanup, { once:true });
+      setTimeout(cleanup, 650);
     }, { passive:true });
   }
 

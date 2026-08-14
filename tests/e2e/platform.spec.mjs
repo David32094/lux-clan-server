@@ -371,6 +371,15 @@ test('el perfil muestra resumen corto y oculta el desglose inicialmente', async 
   await expect(page.locator('.lux-profile-key-stats article')).toHaveCount(4);
   await expect(page.locator('.lux-profile-stat-details')).not.toHaveAttribute('open');
   await expect(page.locator('.lux-profile-stat-details .lux-public-player-stats')).toBeHidden();
+  await expect(page.locator('#hub-modal .hub-close')).toHaveCount(1);
+  await expect(page.locator('#fluxo-cinematic-intro')).toBeHidden({ timeout:5000 });
+  await page.locator('#hub-modal .hub-close').click();
+  await expect(page.locator('#hub-modal')).toBeHidden();
+  await expect(page.locator('#hub-modal-body')).toBeEmpty();
+  await expect(page.locator('body')).not.toHaveClass(/hub-no-scroll/);
+  await page.waitForTimeout(450);
+  await expect(page.locator('#hub-modal')).toBeHidden();
+  await expect(page.locator('button:visible').filter({ hasText:'×' })).toHaveCount(0);
 });
 
 test('el owner ve el enlace general y los tres modos de acceso', async ({ page }) => {
