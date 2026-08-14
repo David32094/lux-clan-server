@@ -157,6 +157,10 @@ body.lux-hub-editor button:focus-visible,body.lux-hub-editor input:focus-visible
  gap:clamp(18px,3vw,34px)!important;margin:0 0 22px!important;padding:0 0 22px!important;
  border-bottom:1px solid #b8ff0025!important
 }
+body .lux-hub .lux-roster-header{
+ position:static!important;top:auto!important;z-index:auto!important;width:100%!important;height:auto!important;min-height:0!important;
+ padding:0 0 22px!important;overflow:visible!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important
+}
 .lux-roster-header>div{min-width:0}.lux-roster-header .hub-kicker{display:block;margin:0 0 7px;font-size:.76rem;letter-spacing:2.2px}
 .lux-roster-header h2,.lux-roster-header h3{
  margin:0!important;color:#fff!important;font:clamp(2.5rem,5vw,4.25rem)/.9 'Bebas Neue',Impact,sans-serif!important;
@@ -235,6 +239,7 @@ body.lux-hub-editor button:focus-visible,body.lux-hub-editor input:focus-visible
 @media(max-width:620px){
  .lux-roster-shell{padding:17px 14px!important;border-radius:18px!important}
  .lux-roster-header{grid-template-columns:minmax(0,1fr) 104px!important;align-items:center!important;gap:12px!important;margin-bottom:16px!important;padding-bottom:17px!important}
+ body .lux-hub .lux-roster-header{padding-bottom:17px!important}
  .lux-roster-header h2,.lux-roster-header h3{font-size:clamp(2.1rem,10vw,3.1rem)!important;line-height:.92!important}.lux-roster-header p{font-size:.72rem!important;line-height:1.45!important}
  .lux-roster-header>aside{min-height:76px;padding:9px 6px;border-radius:13px}.lux-roster-header>aside b{font-size:2rem}.lux-roster-header>aside span{font-size:.48rem;letter-spacing:.8px}
  .lux-roster-search,.hub-directory-search.lux-roster-search{margin-bottom:12px!important}.lux-roster-search input,.hub-directory-search.lux-roster-search input{height:49px!important;border-radius:12px!important}

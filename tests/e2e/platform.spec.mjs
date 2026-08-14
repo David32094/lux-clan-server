@@ -185,10 +185,15 @@ test('Integrantes usa tarjetas simétricas y sin el botón gigante Ver perfil', 
   await expect(page.locator('#lux-member-directory').getByText('VER PERFIL', { exact:true })).toHaveCount(0);
   const memberLayout = await page.locator('#lux-member-directory').evaluate(panel => {
     const cards = [...panel.querySelectorAll('.lux-roster-card')].map(card => card.getBoundingClientRect());
-    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth };
+    const header = panel.querySelector('.lux-roster-header').getBoundingClientRect();
+    const count = panel.querySelector('.lux-roster-header aside').getBoundingClientRect();
+    const search = panel.querySelector('.lux-roster-search input').getBoundingClientRect();
+    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth, headerBottom:header.bottom, countBottom:count.bottom, searchTop:search.top };
   });
   expect(memberLayout.overflow).toBeLessThanOrEqual(1);
   expect(Math.max(...memberLayout.heights) - Math.min(...memberLayout.heights)).toBeLessThanOrEqual(1);
+  expect(memberLayout.headerBottom).toBeLessThan(memberLayout.searchTop);
+  expect(memberLayout.countBottom).toBeLessThan(memberLayout.searchTop);
 
   await page.evaluate(() => window.luxSupabase.openLeader());
   await page.evaluate(() => window.luxSupabase.navigateAdmin('directory'));
@@ -199,10 +204,15 @@ test('Integrantes usa tarjetas simétricas y sin el botón gigante Ver perfil', 
   await expect(page.locator('#hub-member-directory-list').getByRole('button', { name:/banner/i }).first()).toBeVisible();
   const adminLayout = await page.locator('#hub-member-directory').evaluate(panel => {
     const cards = [...panel.querySelectorAll('.lux-roster-card')].map(card => card.getBoundingClientRect());
-    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth };
+    const header = panel.querySelector('.lux-roster-header').getBoundingClientRect();
+    const count = panel.querySelector('.lux-roster-header aside').getBoundingClientRect();
+    const search = panel.querySelector('.lux-roster-search input').getBoundingClientRect();
+    return { width:panel.getBoundingClientRect().width, heights:cards.map(card => card.height), columns:new Set(cards.map(card => Math.round(card.left))).size, overflow:panel.scrollWidth - panel.clientWidth, headerBottom:header.bottom, countBottom:count.bottom, searchTop:search.top };
   });
   expect(adminLayout.overflow).toBeLessThanOrEqual(1);
   expect(Math.max(...adminLayout.heights) - Math.min(...adminLayout.heights)).toBeLessThanOrEqual(1);
+  expect(adminLayout.headerBottom).toBeLessThan(adminLayout.searchTop);
+  expect(adminLayout.countBottom).toBeLessThan(adminLayout.searchTop);
   expect(Math.abs(adminLayout.width - memberLayout.width)).toBeLessThanOrEqual(1);
   if (page.viewportSize().width > 920) {
     expect(memberLayout.columns).toBe(3);
